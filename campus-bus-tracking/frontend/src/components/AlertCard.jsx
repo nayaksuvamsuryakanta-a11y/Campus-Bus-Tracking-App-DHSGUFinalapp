@@ -1,5 +1,8 @@
+import DemoBadge from './DemoBadge.jsx'
+
 function AlertCard({ alert }) {
   const isActive = Boolean(alert.is_active)
+  const createdAt = new Date(`${alert.created_at.replace(' ', 'T')}Z`)
   const typeStyle = {
     DELAY: 'danger',
     ROUTE_CHANGE: 'warning text-dark',
@@ -17,10 +20,11 @@ function AlertCard({ alert }) {
           </span>
         </div>
         <p className="card-text">{alert.message}</p>
+        {Boolean(alert.is_demo) && <div className="mb-2"><DemoBadge isVerified={0} /></div>}
         <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
           <span className={`badge bg-${typeStyle}`}>{alert.alert_type.replaceAll('_', ' ')}</span>
-          <time className="small text-body-secondary" dateTime={alert.created_at}>
-            {new Date(alert.created_at.replace(' ', 'T')).toLocaleString()}
+          <time className="small text-body-secondary" dateTime={createdAt.toISOString()}>
+            {createdAt.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
           </time>
         </div>
       </div>

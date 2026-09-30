@@ -1,0 +1,21 @@
+export const UNIVERSITY = {
+  englishName: 'Dr. Harisingh Gour Vishwavidyalaya',
+  hindiName: '\u0921\u0949. \u0939\u0930\u0940\u0938\u093f\u0902\u0939 \u0917\u094c\u0930 \u0935\u093f\u0936\u094d\u0935\u0935\u093f\u0926\u094d\u092f\u093e\u0932\u092f',
+  shortName: 'DHSGU',
+  alsoKnownAs: 'Sagar University',
+  formerName: 'University of Saugar',
+  established: '18 July 1946',
+  founder: 'Dr. Sir Hari Singh Gour',
+  centralUniversitySince: '15 January 2009',
+  address: 'University Road, Sagar, Madhya Pradesh 470003',
+  website: 'https://www.dhsgsu.edu.in',
+  description: 'A central university about 5 km east of Sagar city on the Pathariya hills, across approximately 1,312.89 acres.',
+  distances: {
+    busStand: 'About 3 km; about 10 minutes by road.',
+    railwayStation: 'About 4-5 km; sources differ.',
+    airport: 'About 13 km to Dhana Airport.',
+  },
+  // TODO: Replace this illustrative center with coordinates verified on OpenStreetMap.
+  MAP_CENTER: [23.84, 78.75],
+  MAP_ZOOM: 14,
+}

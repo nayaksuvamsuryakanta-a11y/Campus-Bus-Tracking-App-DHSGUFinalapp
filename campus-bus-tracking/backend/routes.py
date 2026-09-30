@@ -1,4 +1,6 @@
+import hmac
 import math
+import os
 from datetime import datetime
 
 from flask import Blueprint, jsonify, request
@@ -10,6 +12,11 @@ api = Blueprint("api", __name__)
 
 BUS_STATUSES = {"ON_TIME", "DELAYED", "IN_TRANSIT", "OFFLINE"}
 ALERT_TYPES = {"DELAY", "ROUTE_CHANGE", "CANCELLATION", "GENERAL"}
+PLACE_CATEGORIES = {
+    "GATE", "HOSTEL", "ACADEMIC", "LIBRARY", "AUDITORIUM", "HEALTH",
+    "BANK", "CANTEEN", "SPORTS", "GARDEN", "MUSEUM", "SCHOOL",
+    "SECURITY", "OTHER",
+}
 
 
 def _error(message, status_code):
@@ -27,6 +34,64 @@ def _is_active_value(value):
     if type(value) is int and value in (0, 1):
         return value
     return None
+
+
+def _driver_pin_error():
+    # This is a demo safeguard, not real authentication.
+    expected_pin = os.getenv("DRIVER_PIN")
+    if expected_pin is not None and not hmac.compare_digest(
+        request.headers.get("X-Driver-Pin", ""), expected_pin
+    ):
+        return _error("A valid X-Driver-Pin header is required", 401)
+    return None
+
+
+@api.get("/university")
+def get_university():
+    connection = get_db_connection()
+    try:
+        rows = connection.execute(
+            "SELECT key, value FROM university_info ORDER BY key"
+        ).fetchall()
+        return jsonify({row["key"]: row["value"] for row in rows})
+    finally:
+        connection.close()
+
+
+@api.get("/places")
+def get_places():
+    category = request.args.get("category")
+    if category is not None and category not in PLACE_CATEGORIES:
+        return _error("Invalid place category", 400)
+
+    connection = get_db_connection()
+    try:
+        if category is None:
+            places = connection.execute(
+                "SELECT * FROM campus_places ORDER BY name, id"
+            ).fetchall()
+        else:
+            places = connection.execute(
+                "SELECT * FROM campus_places WHERE category = ? ORDER BY name, id",
+                (category,),
+            ).fetchall()
+        return jsonify([dict(place) for place in places])
+    finally:
+        connection.close()
+
+
+@api.get("/places/<int:place_id>")
+def get_place(place_id):
+    connection = get_db_connection()
+    try:
+        place = connection.execute(
+            "SELECT * FROM campus_places WHERE id = ?", (place_id,)
+        ).fetchone()
+        if place is None:
+            return _error("Campus place not found", 404)
+        return jsonify(dict(place))
+    finally:
+        connection.close()
 
 
 @api.get("/routes")
@@ -67,8 +132,8 @@ def get_buses():
     try:
         buses = connection.execute(
             """
-            SELECT b.id, b.bus_number, b.route_id, r.route_name, b.driver_name,
-                   b.status, b.latitude, b.longitude, b.updated_at
+                 SELECT b.id, b.bus_number, b.route_id, r.route_name, b.driver_name,
+                     b.status, b.latitude, b.longitude, b.updated_at, b.is_verified
             FROM buses AS b
             LEFT JOIN routes AS r ON r.id = b.route_id
             ORDER BY b.id
@@ -85,8 +150,8 @@ def get_bus(bus_id):
     try:
         bus = connection.execute(
             """
-            SELECT b.id, b.bus_number, b.route_id, r.route_name, b.driver_name,
-                   b.status, b.latitude, b.longitude, b.updated_at
+                 SELECT b.id, b.bus_number, b.route_id, r.route_name, b.driver_name,
+                     b.status, b.latitude, b.longitude, b.updated_at, b.is_verified
             FROM buses AS b
             LEFT JOIN routes AS r ON r.id = b.route_id
             WHERE b.id = ?
@@ -102,6 +167,10 @@ def get_bus(bus_id):
 
 @api.post("/buses/<int:bus_id>/location")
 def update_bus_location(bus_id):
+    pin_error = _driver_pin_error()
+    if pin_error:
+        return pin_error
+
     body = _json_object()
     if body is None:
         return _error("Request body must be a JSON object", 400)
@@ -156,6 +225,10 @@ def update_bus_location(bus_id):
 
 @api.post("/buses/<int:bus_id>/status")
 def update_bus_status(bus_id):
+    pin_error = _driver_pin_error()
+    if pin_error:
+        return pin_error
+
     body = _json_object()
     if body is None:
         return _error("Request body must be a JSON object", 400)
@@ -193,6 +266,10 @@ def get_alerts():
 
 @api.post("/alerts")
 def create_alert():
+    pin_error = _driver_pin_error()
+    if pin_error:
+        return pin_error
+
     body = _json_object()
     if body is None:
         return _error("Request body must be a JSON object", 400)
@@ -230,6 +307,10 @@ def create_alert():
 
 @api.patch("/alerts/<int:alert_id>")
 def update_alert(alert_id):
+    pin_error = _driver_pin_error()
+    if pin_error:
+        return pin_error
+
     body = _json_object()
     if body is None:
         return _error("Request body must be a JSON object", 400)

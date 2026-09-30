@@ -1,3 +1,6 @@
+import DemoBadge from './DemoBadge.jsx'
+import { UNIVERSITY } from '../config/university.js'
+
 function RouteCard({ route, onClick }) {
   return (
     <button
@@ -11,8 +14,9 @@ function RouteCard({ route, onClick }) {
           <span className="text-primary" aria-hidden="true">View</span>
         </span>
         <span className="card-text text-body-secondary d-block mb-3">
-          {route.description || 'Campus shuttle service'}
+          {route.description || `${UNIVERSITY.shortName} demo route; details are not official.`}
         </span>
+        <span className="d-block mb-3"><DemoBadge isVerified={route.is_verified} /></span>
         <span className="d-flex flex-wrap gap-3 small">
           <span><strong>Starts</strong> {route.start_time}</span>
           <span><strong>Ends</strong> {route.end_time}</span>

@@ -4,20 +4,23 @@
 
 ## 1. Introduction and Problem (1 minute)
 
-- Introduce Campus Bus Tracking App and the CodeCraft Mobile App Development Challenge.
+- Introduce the DHSGU Bus Tracker and the CodeCraft Mobile App Development Challenge.
 - Explain the problem: students need reliable route, arrival, bus-location, and service-change information.
 - State the three goals: make schedules visible, demonstrate live location tracking, and communicate disruptions.
+- Clarify that DHSGU facts/place names are verified, while routes, schedules, and coordinates are visibly labeled demo data.
 
 ## 2. Student Experience (2 minutes)
 
 - Open the Home dashboard and point out route, bus, active-alert, and delayed-bus counts.
-- Open Routes and select a route such as Campus Circle Route.
+- Open About DHSGU to show the founding, address, and transport distances; then browse Places by category.
+- Open Routes and select a clearly labeled demo route.
 - Show stop names with arrival/departure times and the route's service hours.
-- Open Live Map and point out the bus markers, route/status popups, and 10-second refresh indicator.
+- Open Live Map and point out bus/status markers, stop/place toggles, the place fly-to link, and 10-second bus refresh.
 
 ## 3. Driver Experience (2 minutes)
 
-- Open Driver Panel and select BUS-101.
+- Select Driver in the user-type menu and open Driver Panel. Enter the configured demo PIN, or continue with a blank PIN in local development when PIN protection is unset.
+- Select BUS-101; point out its demo-data badge.
 - Use “Use My Current Location” if browser permission is available; otherwise enter the demonstration coordinates manually.
 - Update the location and show the success feedback.
 - Change the status to `DELAYED` and show the updated bus details.
@@ -33,12 +36,12 @@
 ## 5. Technical Overview (1.5 minutes)
 
 - Explain that React pages use shared components and Axios service modules to call the Flask REST API.
-- Show that Flask reads/writes SQLite through a shared connection helper and returns JSON.
+- Show that Flask reads/writes SQLite through a shared connection helper and returns JSON, including the university/place endpoints.
 - Mention Leaflet with OpenStreetMap tiles, browser/manual GPS options, and periodic location polling.
-- Note that demonstration data is seeded locally and no paid API is required.
+- Note that the optional `DRIVER_PIN` is only a demo safeguard, and no paid API is required.
 
 ## 6. Conclusion and Future Scope (1 minute)
 
 - Recap how students see schedules, bus positions, and alerts while drivers can publish updates.
-- Acknowledge that sample coordinates demonstrate the flow and are not an installed GPS device feed.
+- Acknowledge that sample routes/times and approximate map pins demonstrate the flow and are not official schedules or an installed GPS device feed. Replace the map center and coordinates using OpenStreetMap and on-site confirmation.
 - Mention future work: secure driver authentication, push notifications, production persistence, and a React Native client.

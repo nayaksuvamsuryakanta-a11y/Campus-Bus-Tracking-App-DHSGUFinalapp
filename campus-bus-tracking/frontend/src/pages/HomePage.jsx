@@ -3,12 +3,15 @@ import { Link } from 'react-router-dom'
 import AlertBanner from '../components/AlertBanner.jsx'
 import ErrorMessage from '../components/ErrorMessage.jsx'
 import Loader from '../components/Loader.jsx'
+import { UNIVERSITY } from '../config/university.js'
 import { getAlerts } from '../services/alertService.js'
 import { getBuses, getRoutes } from '../services/busService.js'
 
 const navigationCards = [
   { title: 'Routes', description: 'Browse campus bus routes and schedules.', to: '/routes' },
   { title: 'Live Map', description: 'See current bus locations and status.', to: '/live-map' },
+  { title: 'Places', description: 'Browse university landmarks and facilities.', to: '/places' },
+  { title: 'About DHSGU', description: 'University facts and travel distances.', to: '/about' },
   { title: 'Alerts', description: 'Review active service updates.', to: '/alerts' },
   { title: 'Driver Panel', description: 'Update a bus for demonstration.', to: '/driver-panel' },
 ]
@@ -68,8 +71,8 @@ function HomePage() {
   return (
     <main className="container mt-4 mb-5">
       <header className="mb-4">
-        <p className="text-uppercase small fw-semibold text-primary mb-1">University transit</p>
-        <h1 className="h2 mb-2">Campus Bus Tracker</h1>
+        <p className="text-uppercase small fw-semibold text-primary mb-1">{UNIVERSITY.shortName} · University transit</p>
+        <h1 className="h2 mb-2">{UNIVERSITY.englishName}</h1>
         <p className="text-body-secondary mb-0">Routes, schedules, and service updates in one place.</p>
       </header>
 
@@ -78,6 +81,8 @@ function HomePage() {
           <AlertBanner
             title={activeAlerts[0].title}
             message={activeAlerts[0].message}
+            alertType={activeAlerts[0].alert_type}
+            isDemo={activeAlerts[0].is_demo}
           />
         </section>
       )}

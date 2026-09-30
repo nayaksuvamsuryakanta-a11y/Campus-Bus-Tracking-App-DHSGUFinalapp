@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import ErrorMessage from '../components/ErrorMessage.jsx'
+import DemoBadge from '../components/DemoBadge.jsx'
 import Loader from '../components/Loader.jsx'
 import StatusBadge from '../components/StatusBadge.jsx'
 import { createAlert } from '../services/alertService.js'
@@ -28,6 +29,12 @@ function formatCoordinate(value) {
 }
 
 function DriverPanelPage() {
+  const [isUnlocked, setIsUnlocked] = useState(
+    () => window.sessionStorage.getItem('dhsgu-driver-unlocked') === 'true',
+  )
+  const [driverPin, setDriverPin] = useState(
+    () => window.sessionStorage.getItem('dhsgu-driver-pin') || '',
+  )
   const [buses, setBuses] = useState([])
   const [selectedBusId, setSelectedBusId] = useState('')
   const [latitude, setLatitude] = useState('')
@@ -46,6 +53,8 @@ function DriverPanelPage() {
   const [alertFeedback, setAlertFeedback] = useState(null)
 
   useEffect(() => {
+    if (!isUnlocked) return undefined
+
     let isCurrent = true
     getBuses()
       .then((data) => {
@@ -71,9 +80,20 @@ function DriverPanelPage() {
     return () => {
       isCurrent = false
     }
-  }, [])
+  }, [isUnlocked])
 
   const selectedBus = buses.find((bus) => String(bus.id) === selectedBusId)
+
+  function handleUnlock(event) {
+    event.preventDefault()
+    if (driverPin) {
+      window.sessionStorage.setItem('dhsgu-driver-pin', driverPin)
+    } else {
+      window.sessionStorage.removeItem('dhsgu-driver-pin')
+    }
+    window.sessionStorage.setItem('dhsgu-driver-unlocked', 'true')
+    setIsUnlocked(true)
+  }
 
   function handleBusSelection(event) {
     const busId = event.target.value
@@ -168,6 +188,33 @@ function DriverPanelPage() {
     }
   }
 
+  if (!isUnlocked) {
+    return (
+      <main className="container mt-4 mb-5">
+        <section className="card mx-auto" style={{ maxWidth: 480 }}>
+          <div className="card-body">
+            <h1 className="h4 mb-3">Driver panel access</h1>
+            <form onSubmit={handleUnlock}>
+              <label className="form-label" htmlFor="driver-pin">Driver PIN</label>
+              <input
+                className="form-control mb-2"
+                id="driver-pin"
+                type="password"
+                autoComplete="current-password"
+                value={driverPin}
+                onChange={(event) => setDriverPin(event.target.value)}
+              />
+              <p className="small text-body-secondary">
+                Leave blank when local PIN protection is not configured. This demo PIN is not real authentication.
+              </p>
+              <button className="btn btn-primary" type="submit">Continue</button>
+            </form>
+          </div>
+        </section>
+      </main>
+    )
+  }
+
   if (isLoading) {
     return <main className="container mt-4"><Loader label="Loading buses" /></main>
   }
@@ -206,6 +253,7 @@ function DriverPanelPage() {
                   <div className="d-flex flex-wrap align-items-center gap-3 small">
                     <span>{selectedBus.route_name || 'Unassigned route'}</span>
                     <StatusBadge status={selectedBus.status} />
+                    <DemoBadge isVerified={selectedBus.is_verified} />
                     <span>
                       {formatCoordinate(selectedBus.latitude)}, {formatCoordinate(selectedBus.longitude)}
                     </span>

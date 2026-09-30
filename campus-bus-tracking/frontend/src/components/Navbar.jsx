@@ -1,19 +1,38 @@
-import { NavLink } from 'react-router-dom'
+import { useState } from 'react'
+import { NavLink, useNavigate } from 'react-router-dom'
+import { UNIVERSITY } from '../config/university.js'
+import {
+  getStoredUserType,
+  USER_LANDING_PATHS,
+  USER_TYPE_STORAGE_KEY,
+  USER_TYPES,
+} from '../config/userTypes.js'
 
 const links = [
-  { label: 'Home', to: '/' },
+  { label: 'Home', to: '/home' },
   { label: 'Routes', to: '/routes' },
   { label: 'Live Map', to: '/live-map' },
+  { label: 'Places', to: '/places' },
+  { label: 'About DHSGU', to: '/about' },
   { label: 'Alerts', to: '/alerts' },
-  { label: 'Driver Panel', to: '/driver-panel' },
 ]
 
 function Navbar() {
+  const navigate = useNavigate()
+  const [userType, setUserType] = useState(getStoredUserType)
+
+  function handleUserTypeChange(event) {
+    const nextUserType = event.target.value
+    setUserType(nextUserType)
+    window.localStorage.setItem(USER_TYPE_STORAGE_KEY, nextUserType)
+    navigate(USER_LANDING_PATHS[nextUserType])
+  }
+
   return (
     <nav className="navbar navbar-expand-lg navbar-dark bg-primary">
       <div className="container">
         <NavLink className="navbar-brand fw-semibold" to="/">
-          Campus Bus Tracker
+          {UNIVERSITY.shortName} Bus Tracker
         </NavLink>
         <button
           className="navbar-toggler"
@@ -40,6 +59,28 @@ function Navbar() {
                 {link.label}
               </NavLink>
             ))}
+            {userType === 'Driver' && (
+              <NavLink
+                className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
+                to="/driver-panel"
+              >
+                Driver Panel
+              </NavLink>
+            )}
+            <div className="d-flex align-items-center gap-2 ms-lg-3 py-2">
+              <label className="small text-white text-nowrap mb-0" htmlFor="user-type">
+                I am a:
+              </label>
+              <select
+                className="form-select form-select-sm"
+                id="user-type"
+                value={userType}
+                onChange={handleUserTypeChange}
+                aria-label="Select user type"
+              >
+                {USER_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+              </select>
+            </div>
           </div>
         </div>
       </div>
