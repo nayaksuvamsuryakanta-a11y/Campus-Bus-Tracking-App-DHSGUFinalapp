@@ -1,0 +1,257 @@
+import math
+from datetime import datetime
+
+from flask import Blueprint, jsonify, request
+
+from database import get_db_connection
+
+
+api = Blueprint("api", __name__)
+
+BUS_STATUSES = {"ON_TIME", "DELAYED", "IN_TRANSIT", "OFFLINE"}
+ALERT_TYPES = {"DELAY", "ROUTE_CHANGE", "CANCELLATION", "GENERAL"}
+
+
+def _error(message, status_code):
+    return jsonify({"error": message}), status_code
+
+
+def _json_object():
+    body = request.get_json(silent=True)
+    return body if isinstance(body, dict) else None
+
+
+def _is_active_value(value):
+    if isinstance(value, bool):
+        return int(value)
+    if type(value) is int and value in (0, 1):
+        return value
+    return None
+
+
+@api.get("/routes")
+def get_routes():
+    connection = get_db_connection()
+    try:
+        routes = connection.execute(
+            "SELECT * FROM routes ORDER BY id"
+        ).fetchall()
+        return jsonify([dict(route) for route in routes])
+    finally:
+        connection.close()
+
+
+@api.get("/routes/<int:route_id>")
+def get_route(route_id):
+    connection = get_db_connection()
+    try:
+        route = connection.execute(
+            "SELECT * FROM routes WHERE id = ?", (route_id,)
+        ).fetchone()
+        if route is None:
+            return _error("Route not found", 404)
+
+        route_data = dict(route)
+        stops = connection.execute(
+            "SELECT * FROM stops WHERE route_id = ? ORDER BY id", (route_id,)
+        ).fetchall()
+        route_data["stops"] = [dict(stop) for stop in stops]
+        return jsonify(route_data)
+    finally:
+        connection.close()
+
+
+@api.get("/buses")
+def get_buses():
+    connection = get_db_connection()
+    try:
+        buses = connection.execute(
+            """
+            SELECT b.id, b.bus_number, b.route_id, r.route_name, b.driver_name,
+                   b.status, b.latitude, b.longitude, b.updated_at
+            FROM buses AS b
+            LEFT JOIN routes AS r ON r.id = b.route_id
+            ORDER BY b.id
+            """
+        ).fetchall()
+        return jsonify([dict(bus) for bus in buses])
+    finally:
+        connection.close()
+
+
+@api.get("/buses/<int:bus_id>")
+def get_bus(bus_id):
+    connection = get_db_connection()
+    try:
+        bus = connection.execute(
+            """
+            SELECT b.id, b.bus_number, b.route_id, r.route_name, b.driver_name,
+                   b.status, b.latitude, b.longitude, b.updated_at
+            FROM buses AS b
+            LEFT JOIN routes AS r ON r.id = b.route_id
+            WHERE b.id = ?
+            """,
+            (bus_id,),
+        ).fetchone()
+        if bus is None:
+            return _error("Bus not found", 404)
+        return jsonify(dict(bus))
+    finally:
+        connection.close()
+
+
+@api.post("/buses/<int:bus_id>/location")
+def update_bus_location(bus_id):
+    body = _json_object()
+    if body is None:
+        return _error("Request body must be a JSON object", 400)
+
+    latitude = body.get("latitude")
+    longitude = body.get("longitude")
+    valid_latitude = (
+        isinstance(latitude, (int, float))
+        and not isinstance(latitude, bool)
+        and math.isfinite(latitude)
+        and -90 <= latitude <= 90
+    )
+    valid_longitude = (
+        isinstance(longitude, (int, float))
+        and not isinstance(longitude, bool)
+        and math.isfinite(longitude)
+        and -180 <= longitude <= 180
+    )
+    if not valid_latitude or not valid_longitude:
+        return _error("Valid latitude and longitude are required", 400)
+
+    updated_at = datetime.now().isoformat(timespec="seconds")
+    connection = get_db_connection()
+    try:
+        bus = connection.execute(
+            "SELECT id FROM buses WHERE id = ?", (bus_id,)
+        ).fetchone()
+        if bus is None:
+            return _error("Bus not found", 404)
+
+        connection.execute(
+            """
+            UPDATE buses
+            SET latitude = ?, longitude = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (latitude, longitude, updated_at, bus_id),
+        )
+        connection.commit()
+        return jsonify(
+            {
+                "message": "Bus location updated successfully",
+                "bus_id": bus_id,
+                "latitude": latitude,
+                "longitude": longitude,
+                "updated_at": updated_at,
+            }
+        )
+    finally:
+        connection.close()
+
+
+@api.post("/buses/<int:bus_id>/status")
+def update_bus_status(bus_id):
+    body = _json_object()
+    if body is None:
+        return _error("Request body must be a JSON object", 400)
+
+    status = body.get("status")
+    if not isinstance(status, str) or status not in BUS_STATUSES:
+        return _error("Status must be ON_TIME, DELAYED, IN_TRANSIT, or OFFLINE", 400)
+
+    connection = get_db_connection()
+    try:
+        cursor = connection.execute(
+            "UPDATE buses SET status = ? WHERE id = ?", (status, bus_id)
+        )
+        if cursor.rowcount == 0:
+            return _error("Bus not found", 404)
+        connection.commit()
+        return jsonify(
+            {"message": "Bus status updated successfully", "bus_id": bus_id, "status": status}
+        )
+    finally:
+        connection.close()
+
+
+@api.get("/alerts")
+def get_alerts():
+    connection = get_db_connection()
+    try:
+        alerts = connection.execute(
+            "SELECT * FROM alerts ORDER BY created_at DESC, id DESC"
+        ).fetchall()
+        return jsonify([dict(alert) for alert in alerts])
+    finally:
+        connection.close()
+
+
+@api.post("/alerts")
+def create_alert():
+    body = _json_object()
+    if body is None:
+        return _error("Request body must be a JSON object", 400)
+
+    title = body.get("title")
+    message = body.get("message")
+    alert_type = body.get("alert_type")
+    is_active = _is_active_value(body.get("is_active"))
+    if not isinstance(title, str) or not title.strip():
+        return _error("Title is required", 400)
+    if not isinstance(message, str) or not message.strip():
+        return _error("Message is required", 400)
+    if not isinstance(alert_type, str) or alert_type not in ALERT_TYPES:
+        return _error("Invalid alert type", 400)
+    if is_active is None:
+        return _error("is_active must be true, false, 1, or 0", 400)
+
+    connection = get_db_connection()
+    try:
+        cursor = connection.execute(
+            """
+            INSERT INTO alerts (title, message, alert_type, is_active)
+            VALUES (?, ?, ?, ?)
+            """,
+            (title.strip(), message.strip(), alert_type, is_active),
+        )
+        alert_id = cursor.lastrowid
+        connection.commit()
+        return jsonify(
+            {"message": "Alert created successfully", "alert_id": alert_id}
+        ), 201
+    finally:
+        connection.close()
+
+
+@api.patch("/alerts/<int:alert_id>")
+def update_alert(alert_id):
+    body = _json_object()
+    if body is None:
+        return _error("Request body must be a JSON object", 400)
+
+    is_active = _is_active_value(body.get("is_active"))
+    if is_active is None:
+        return _error("is_active must be true, false, 1, or 0", 400)
+
+    connection = get_db_connection()
+    try:
+        cursor = connection.execute(
+            "UPDATE alerts SET is_active = ? WHERE id = ?", (is_active, alert_id)
+        )
+        if cursor.rowcount == 0:
+            return _error("Alert not found", 404)
+        connection.commit()
+        return jsonify(
+            {
+                "message": "Alert updated successfully",
+                "alert_id": alert_id,
+                "is_active": bool(is_active),
+            }
+        )
+    finally:
+        connection.close()
