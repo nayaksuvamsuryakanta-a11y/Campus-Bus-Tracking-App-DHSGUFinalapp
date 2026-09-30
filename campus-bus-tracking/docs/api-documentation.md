@@ -296,3 +296,35 @@ Returns one campus place in the same shape as the list endpoint. Returns HTTP 40
   "notes": "coordinates to be confirmed on site"
 }
 ```
+
+## 14. Ask the Transit and Safety Assistant
+
+`POST /api/chat`
+
+Accepts one question and returns a concise answer using database context for verified university information/places, active alerts, and a route summary. Routes marked as demo are not official, and the assistant must not invent bus timings or emergency numbers. For live bus locations it directs the user to the Live Map. If `GEMINI_API_KEY` is unset or the Gemini request fails, it returns an offline demo reply instead. The key belongs in the backend environment only.
+
+Request:
+
+```json
+{
+  "message": "Are there any bus delays today?"
+}
+```
+
+Gemini success:
+
+```json
+{
+  "reply": "The active alerts currently list a demo delay for BUS-101. This is demonstration data, not an official DHSGU bus update."
+}
+```
+
+Offline success:
+
+```json
+{
+  "reply": "I am currently in offline demo mode. Please check the Alerts page for live updates."
+}
+```
+
+An absent/blank message, non-JSON body, or message over 2000 characters returns HTTP 400 with the standard error format.

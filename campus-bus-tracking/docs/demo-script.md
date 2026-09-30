@@ -1,6 +1,6 @@
 # Hackathon Demo Script
 
-**Target duration: 9 minutes**
+**Target duration: 10 minutes**
 
 ## 1. Introduction and Problem (1 minute)
 
@@ -40,7 +40,14 @@
 - Mention Leaflet with OpenStreetMap tiles, browser/manual GPS options, and periodic location polling.
 - Note that the optional `DRIVER_PIN` is only a demo safeguard, and no paid API is required.
 
-## 6. Conclusion and Future Scope (1 minute)
+## 6. AI Assistant (1 minute)
+
+- Open the floating DHSGU Transit & Safety Assistant.
+- Ask: “Are there any bus delays today?” and point out that it uses active alert context.
+- Ask: “Where is the Swarna Jayanti Auditorium?” and explain that it must not invent directions while the place coordinates remain unverified.
+- If no `GEMINI_API_KEY` is configured or the service is offline, show the offline demo response and use the Alerts/Places pages for current app data.
+
+## 7. Conclusion and Future Scope (1 minute)
 
 - Recap how students see schedules, bus positions, and alerts while drivers can publish updates.
 - Acknowledge that sample routes/times and approximate map pins demonstrate the flow and are not official schedules or an installed GPS device feed. Replace the map center and coordinates using OpenStreetMap and on-site confirmation.

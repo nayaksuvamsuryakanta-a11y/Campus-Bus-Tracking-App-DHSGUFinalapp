@@ -2,6 +2,7 @@ import 'bootstrap/dist/css/bootstrap.min.css'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import Navbar from './components/Navbar.jsx'
 import Footer from './components/Footer.jsx'
+import ChatWidget from './components/ChatWidget.jsx'
 import AlertsPage from './pages/AlertsPage.jsx'
 import AboutPage from './pages/AboutPage.jsx'
 import DriverPanelPage from './pages/DriverPanelPage.jsx'
@@ -28,6 +29,7 @@ function App() {
         <Route path="/driver-panel" element={<DriverPanelPage />} />
       </Routes>
       <Footer />
+      <ChatWidget />
     </div>
   )
 }

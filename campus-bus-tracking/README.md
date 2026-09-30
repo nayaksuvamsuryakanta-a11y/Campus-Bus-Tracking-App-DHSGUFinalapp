@@ -16,6 +16,7 @@ Only the university facts and place names listed in this README are sourced from
 - See bus status badges and active delay/route-change alerts.
 - Update bus coordinates and status from the demonstration driver panel.
 - Create and activate/deactivate service alerts.
+- Ask the DHSGU Transit & Safety Assistant about verified university facts and current active alerts; without a Gemini key it uses offline demo replies.
 - Select Student, Faculty, or Driver to choose the default landing page; this is not authentication.
 - Optionally require a demo Driver PIN for write requests.
 - Use the REST API backed by a local SQLite database.
@@ -37,7 +38,8 @@ campus-bus-tracking/
     routes.py              REST API endpoints
     database.py            SQLite schema and connection helper
     seed.py                Demonstration data
-    requirements.txt       Python dependencies
+    requirements.txt       Python dependencies, including Gemini SDK
+    .env.example           Backend-only environment variable template
     campus_bus.db          Created locally at runtime; not committed
     tests/                 Flask test-client tests using temporary SQLite databases
   docs/
@@ -84,6 +86,33 @@ If PowerShell blocks virtual-environment activation, use `venv\Scripts\python.ex
 
 The Driver Panel prompts for a PIN. Leave it blank for local development if the backend has no `DRIVER_PIN`. If the backend has a PIN configured, enter the same value; it is kept in `sessionStorage` for that browser tab and sent as `X-Driver-Pin`. This is a demonstration safeguard only, not real authentication.
 
+### Gemini Assistant (Optional)
+
+The assistant uses the backend-only `GEMINI_API_KEY` variable; never add the key to a `VITE_` variable or commit it. Create a free key in [Google AI Studio](https://aistudio.google.com/app/apikey), copy `backend/.env.example` to a private notes file if useful, then set it in the PowerShell session running Flask:
+
+```powershell
+$env:GEMINI_API_KEY = "your-key-from-google-ai-studio"
+python app.py
+```
+
+Install the requested Gemini SDK into the backend virtual environment with:
+
+```powershell
+cd backend
+venv\Scripts\Activate.ps1
+python -m pip install google-generativeai
+```
+
+Alternatively rerun `python -m pip install -r requirements.txt`. When the key is absent or Gemini is unavailable, `/api/chat` returns an offline response directing users to the Routes, Places, Live Map, or Alerts pages. The assistant uses university information, verified place rows, active alerts, and route summaries as RAG-lite context; unverified demo entries are explicitly identified in its instructions.
+
+Test the endpoint locally without an API key (the response should mention offline demo mode):
+
+```powershell
+curl.exe -X POST http://127.0.0.1:5000/api/chat `
+  -H "Content-Type: application/json" `
+  --data-raw '{"message":"Are there any bus delays today?"}'
+```
+
 To run backend tests from `backend`, use `python -m unittest discover -s tests -v`. To verify the frontend, run `npm run build` and `npm run lint` from `frontend`.
 
 ## API Documentation Summary
@@ -98,6 +127,7 @@ The API base URL locally is `http://127.0.0.1:5000`. The full request and respon
 - `POST /api/buses/<bus_id>/location`
 - `POST /api/buses/<bus_id>/status`
 - `GET /api/alerts`, `POST /api/alerts`, and `PATCH /api/alerts/<alert_id>`
+- `POST /api/chat` with `{"message":"..."}` for the Gemini/offline assistant
 
 ## Demonstration
 
@@ -135,7 +165,7 @@ Create a Python web service with `backend` as its root directory. Use `pip insta
 gunicorn app:app --bind 0.0.0.0:$PORT
 ```
 
-The equivalent basic Gunicorn command is `gunicorn app:app`; use the explicit `$PORT` binding when required by the host. Set `FRONTEND_ORIGIN` to the deployed Vercel origin so Flask-CORS accepts browser requests. Optionally set `DRIVER_PIN` in the provider's environment settings; this PIN header check is only a demo safeguard. The database is initialized when the app starts. Run `python seed.py` manually from the provider's shell for demonstration data; `python seed.py --reset` only clears unverified/demo rows. SQLite files on many hosted services are ephemeral unless a persistent disk is configured, so attach durable storage or choose a managed database if data must survive redeployments.
+The equivalent basic Gunicorn command is `gunicorn app:app`; use the explicit `$PORT` binding when required by the host. Set `FRONTEND_ORIGIN` to the deployed Vercel origin so Flask-CORS accepts browser requests. Set `GEMINI_API_KEY` in the backend service's environment settings to enable AI replies; do not place it in frontend settings. Optionally set `DRIVER_PIN` in the provider's environment settings; this PIN header check is only a demo safeguard. The database is initialized when the app starts. Run `python seed.py` manually from the provider's shell for demonstration data; `python seed.py --reset` only clears unverified/demo rows. SQLite files on many hosted services are ephemeral unless a persistent disk is configured, so attach durable storage or choose a managed database if data must survive redeployments.
 
 ### Frontend on Vercel
 

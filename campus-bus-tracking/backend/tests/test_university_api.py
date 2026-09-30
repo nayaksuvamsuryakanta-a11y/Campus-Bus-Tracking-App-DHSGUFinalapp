@@ -1,9 +1,11 @@
 import os
 import sqlite3
+import sys
 import tempfile
 import unittest
+from types import ModuleType, SimpleNamespace
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from flask import Flask
 
@@ -224,12 +226,81 @@ class UniversityPlaceApiTests(unittest.TestCase):
                 1,
             )
             self.assertEqual(
-                connection.execute("SELECT COUNT(*) FROM alerts WHERE title = ?", ("User alert",)).fetchone()[0],
+                connection.execute(
+                    "SELECT COUNT(*) FROM alerts WHERE title = ?", ("User alert",)
+                ).fetchone()[0],
                 1,
             )
             self.assertEqual(before_reset, after_reset)
         finally:
             connection.close()
+
+    def test_chat_offline_fallback_and_message_validation(self):
+        with patch.dict(os.environ, {"GEMINI_API_KEY": ""}):
+            response = self.client.post(
+                "/api/chat", json={"message": "Are there any bus delays today?"}
+            )
+            missing = self.client.post("/api/chat", json={})
+            blank = self.client.post("/api/chat", json={"message": " "})
+            too_long = self.client.post("/api/chat", json={"message": "x" * 2001})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("offline demo mode", response.get_json()["reply"])
+        self.assertEqual(missing.status_code, 400)
+        self.assertEqual(blank.status_code, 400)
+        self.assertEqual(too_long.status_code, 400)
+
+    def test_chat_sends_rag_context_to_gemini(self):
+        connection = database.get_db_connection()
+        connection.execute(
+            """INSERT INTO campus_places
+               (name, category, description, is_verified)
+               VALUES (?, ?, ?, 1)""",
+            ("Verified Auditorium", "AUDITORIUM", "Verified place description"),
+        )
+        connection.execute(
+            """INSERT INTO routes (route_name, start_time, end_time, is_verified)
+               VALUES (?, ?, ?, 0)""",
+            ("Test route (DEMO)", "08:00", "09:00"),
+        )
+        connection.execute(
+            """INSERT INTO alerts (title, message, alert_type, is_active, is_demo)
+               VALUES (?, ?, ?, 1, 1)""",
+            ("Active demo delay", "A sample bus is delayed", "DELAY"),
+        )
+        connection.commit()
+        connection.close()
+
+        model = Mock()
+        model.generate_content.return_value = SimpleNamespace(text="Context-grounded answer")
+        generative_ai = ModuleType("google.generativeai")
+        generative_ai.configure = Mock()
+        generative_ai.GenerativeModel = Mock(return_value=model)
+        google_package = ModuleType("google")
+        google_package.__path__ = []
+        google_package.generativeai = generative_ai
+
+        with (
+            patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}),
+            patch.dict(
+                sys.modules,
+                {"google": google_package, "google.generativeai": generative_ai},
+            ),
+        ):
+            response = self.client.post(
+                "/api/chat", json={"message": "Where is the auditorium?"}
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), {"reply": "Context-grounded answer"})
+        system_instruction = generative_ai.GenerativeModel.call_args.kwargs[
+            "system_instruction"
+        ]
+        self.assertIn("Verified Auditorium", system_instruction)
+        self.assertIn("Active demo delay", system_instruction)
+        self.assertIn("Test route (DEMO)", system_instruction)
+        self.assertIn("Nivedita Girls Hostel", system_instruction)
+        self.assertIn("demo_place_names_only", system_instruction)
 
 
 if __name__ == "__main__":
