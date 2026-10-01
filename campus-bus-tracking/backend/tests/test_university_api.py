@@ -1,26 +1,34 @@
 import os
 import sqlite3
 import sys
-import tempfile
 import unittest
+import uuid
+from datetime import datetime, timezone
 from types import ModuleType, SimpleNamespace
-from pathlib import Path
 from unittest.mock import Mock, patch
 
 from flask import Flask
 
 import database
+import seed
 from routes import api
 from seed import seed_database
 
 
 class UniversityPlaceApiTests(unittest.TestCase):
     def setUp(self):
-        self.temp_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
-        self.database_path_patcher = patch.object(
-            database, "DATABASE_PATH", Path(self.temp_dir.name) / "api-test.db"
-        )
-        self.database_path_patcher.start()
+        self.environment_snapshot = {
+            key: os.environ.get(key) for key in ("DRIVER_PIN", "GEMINI_API_KEY")
+        }
+        self.database_uri = self._new_database_uri()
+        self.keeper_connection = self._connect_test_database()
+        self.database_connection_patchers = [
+            patch.object(database, "get_db_connection", side_effect=self._connect_test_database),
+            patch("routes.get_db_connection", side_effect=self._connect_test_database),
+            patch("seed.get_db_connection", side_effect=self._connect_test_database),
+        ]
+        for patcher in self.database_connection_patchers:
+            patcher.start()
         database.init_db()
 
         connection = database.get_db_connection()
@@ -48,8 +56,24 @@ class UniversityPlaceApiTests(unittest.TestCase):
         self.client = self.app.test_client()
 
     def tearDown(self):
-        self.database_path_patcher.stop()
-        self.temp_dir.cleanup()
+        for patcher in reversed(self.database_connection_patchers):
+            patcher.stop()
+        self.keeper_connection.close()
+        for key, value in self.environment_snapshot.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+    @staticmethod
+    def _new_database_uri():
+        return f"file:campus_bus_test_{uuid.uuid4().hex}?mode=memory&cache=shared"
+
+    def _connect_test_database(self):
+        connection = sqlite3.connect(self.database_uri, uri=True)
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA foreign_keys = ON")
+        return connection
 
     def test_get_university_returns_info_as_object(self):
         response = self.client.get("/api/university")
@@ -67,6 +91,41 @@ class UniversityPlaceApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.get_json()), 2)
         self.assertEqual(response.get_json()[0]["is_verified"], 0)
+
+    def test_core_list_endpoints_return_seeded_records(self):
+        connection = database.get_db_connection()
+        route_cursor = connection.execute(
+            """INSERT INTO routes (route_name, start_time, end_time, is_verified)
+               VALUES (?, ?, ?, 1)""",
+            ("Verified campus loop", "08:00", "18:00"),
+        )
+        connection.execute(
+            """INSERT INTO buses (bus_number, route_id, status, is_verified)
+               VALUES (?, ?, ?, 1)""",
+            ("DHSGU-TEST-1", route_cursor.lastrowid, "ON_TIME"),
+        )
+        connection.execute(
+            """INSERT INTO alerts (title, message, alert_type, is_active)
+               VALUES (?, ?, ?, 1)""",
+            ("Test service notice", "Service is operating normally.", "GENERAL"),
+        )
+        connection.commit()
+        connection.close()
+
+        routes = self.client.get("/api/routes")
+        buses = self.client.get("/api/buses")
+        alerts = self.client.get("/api/alerts")
+        university = self.client.get("/api/university")
+        places = self.client.get("/api/places")
+
+        for response in (routes, buses, alerts, places):
+            self.assertEqual(response.status_code, 200)
+            self.assertIsInstance(response.get_json(), list)
+        self.assertEqual(university.status_code, 200)
+        self.assertIsInstance(university.get_json(), dict)
+        self.assertEqual(routes.get_json()[0]["route_name"], "Verified campus loop")
+        self.assertEqual(buses.get_json()[0]["bus_number"], "DHSGU-TEST-1")
+        self.assertEqual(alerts.get_json()[0]["title"], "Test service notice")
 
     def test_places_category_filter_and_validation(self):
         filtered = self.client.get("/api/places?category=LIBRARY")
@@ -87,8 +146,8 @@ class UniversityPlaceApiTests(unittest.TestCase):
         self.assertEqual(missing.status_code, 404)
 
     def test_legacy_schema_migration_preserves_rows(self):
-        legacy_path = Path(self.temp_dir.name) / "legacy.db"
-        legacy = sqlite3.connect(legacy_path)
+        legacy_uri = self._new_database_uri()
+        legacy = sqlite3.connect(legacy_uri, uri=True)
         legacy.executescript(
             """
             CREATE TABLE routes (id INTEGER PRIMARY KEY, route_name TEXT NOT NULL, description TEXT, start_time TEXT NOT NULL, end_time TEXT NOT NULL);
@@ -99,11 +158,12 @@ class UniversityPlaceApiTests(unittest.TestCase):
             """
         )
         legacy.commit()
-        legacy.close()
 
-        self.database_path_patcher.stop()
-        self.database_path_patcher = patch.object(database, "DATABASE_PATH", legacy_path)
-        self.database_path_patcher.start()
+        self.keeper_connection.close()
+        self.database_uri = legacy_uri
+        legacy.row_factory = sqlite3.Row
+        legacy.execute("PRAGMA foreign_keys = ON")
+        self.keeper_connection = legacy
         database.init_db()
         connection = database.get_db_connection()
         try:
@@ -119,6 +179,77 @@ class UniversityPlaceApiTests(unittest.TestCase):
             self.assertTrue({"campus_places", "university_info"}.issubset(tables))
         finally:
             connection.close()
+
+    def test_init_db_is_safe_when_called_repeatedly(self):
+        database.init_db()
+        database.init_db()
+
+        connection = database.get_db_connection()
+        try:
+            for table, expected_column in (
+                ("routes", "is_verified"),
+                ("stops", "is_verified"),
+                ("buses", "is_verified"),
+                ("alerts", "is_demo"),
+            ):
+                columns = {
+                    row["name"]
+                    for row in connection.execute(f"PRAGMA table_info({table})")
+                }
+                self.assertIn(expected_column, columns)
+        finally:
+            connection.close()
+
+    def test_write_endpoints_reject_invalid_coordinates_and_enum_values(self):
+        connection = database.get_db_connection()
+        route_cursor = connection.execute(
+            "INSERT INTO routes (route_name, start_time, end_time) VALUES (?, ?, ?)",
+            ("Validation route", "08:00", "09:00"),
+        )
+        bus_cursor = connection.execute(
+            "INSERT INTO buses (bus_number, route_id) VALUES (?, ?)",
+            ("VALIDATION-BUS", route_cursor.lastrowid),
+        )
+        connection.commit()
+        connection.close()
+
+        headers = {"X-Driver-Pin": "validation-pin"}
+        with patch.dict(os.environ, {"DRIVER_PIN": "validation-pin"}):
+            invalid_latitude = self.client.post(
+                f"/api/buses/{bus_cursor.lastrowid}/location",
+                json={"latitude": 91, "longitude": 78.75},
+                headers=headers,
+            )
+            invalid_longitude = self.client.post(
+                f"/api/buses/{bus_cursor.lastrowid}/location",
+                json={"latitude": 23.84, "longitude": -181},
+                headers=headers,
+            )
+            invalid_status = self.client.post(
+                f"/api/buses/{bus_cursor.lastrowid}/status",
+                json={"status": "LATE"},
+                headers=headers,
+            )
+            invalid_alert_type = self.client.post(
+                "/api/alerts",
+                json={
+                    "title": "Invalid enum",
+                    "message": "Should be rejected",
+                    "alert_type": "WEATHER",
+                    "is_active": True,
+                },
+                headers=headers,
+            )
+
+        self.assertEqual(
+            [
+                invalid_latitude.status_code,
+                invalid_longitude.status_code,
+                invalid_status.status_code,
+                invalid_alert_type.status_code,
+            ],
+            [400, 400, 400, 400],
+        )
 
     def test_driver_pin_required_only_when_configured(self):
         connection = database.get_db_connection()
@@ -174,6 +305,43 @@ class UniversityPlaceApiTests(unittest.TestCase):
 
         self.assertEqual([response.status_code for response in denied_responses], [401] * 4)
         self.assertEqual([response.status_code for response in accepted_responses], [200, 200, 201, 200])
+
+    def test_blank_driver_pin_disables_optional_pin_check(self):
+        connection = database.get_db_connection()
+        cursor = connection.execute(
+            "INSERT INTO buses (bus_number) VALUES (?)", ("PIN-TEST-BUS",)
+        )
+        connection.commit()
+        bus_id = cursor.lastrowid
+        connection.close()
+
+        with patch.dict(os.environ, {"DRIVER_PIN": ""}):
+            response = self.client.post(
+                f"/api/buses/{bus_id}/location",
+                json={"latitude": 23.84, "longitude": 78.75},
+            )
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_location_timestamp_is_utc_sqlite_format(self):
+        connection = database.get_db_connection()
+        cursor = connection.execute(
+            "INSERT INTO buses (bus_number) VALUES (?)", ("UTC-TEST-BUS",)
+        )
+        connection.commit()
+        bus_id = cursor.lastrowid
+        connection.close()
+
+        response = self.client.post(
+            f"/api/buses/{bus_id}/location",
+            json={"latitude": 23.84, "longitude": 78.75},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        timestamp = response.get_json()["updated_at"]
+        parsed_timestamp = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
+        utc_now = datetime.now(timezone.utc).replace(tzinfo=None)
+        self.assertLess(abs((utc_now - parsed_timestamp).total_seconds()), 10)
 
     def test_seed_is_idempotent_and_reset_preserves_verified_rows(self):
         connection = database.get_db_connection()
@@ -301,6 +469,39 @@ class UniversityPlaceApiTests(unittest.TestCase):
         self.assertIn("Test route (DEMO)", system_instruction)
         self.assertIn("Nivedita Girls Hostel", system_instruction)
         self.assertIn("demo_place_names_only", system_instruction)
+
+    def test_chat_falls_back_when_gemini_import_is_missing(self):
+        with (
+            patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}),
+            patch.dict(sys.modules, {"google": None, "google.generativeai": None}),
+        ):
+            response = self.client.post("/api/chat", json={"message": "Hello"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("offline demo mode", response.get_json()["reply"])
+
+    def test_chat_falls_back_when_gemini_request_fails_with_empty_context(self):
+        model = Mock()
+        model.generate_content.side_effect = ConnectionError("network unavailable")
+        generative_ai = ModuleType("google.generativeai")
+        generative_ai.configure = Mock()
+        generative_ai.GenerativeModel = Mock(return_value=model)
+        google_package = ModuleType("google")
+        google_package.__path__ = []
+        google_package.generativeai = generative_ai
+
+        with (
+            patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}),
+            patch.dict(
+                sys.modules,
+                {"google": google_package, "google.generativeai": generative_ai},
+            ),
+        ):
+            response = self.client.post("/api/chat", json={"message": "Hello"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("offline demo mode", response.get_json()["reply"])
+        model.generate_content.assert_called_once_with("Hello")
 
 
 if __name__ == "__main__":

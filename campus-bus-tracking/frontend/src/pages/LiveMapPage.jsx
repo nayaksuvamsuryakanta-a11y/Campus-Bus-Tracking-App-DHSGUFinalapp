@@ -101,7 +101,10 @@ function LiveMapPage() {
 
   useEffect(() => {
     let isCurrent = true
+    let refreshInProgress = false
     const refreshBuses = async () => {
+      if (refreshInProgress) return
+      refreshInProgress = true
       try {
         const data = await getBuses()
         if (isCurrent) {
@@ -114,6 +117,7 @@ function LiveMapPage() {
           setError('Unable to refresh bus locations. Check that the backend is running.')
         }
       } finally {
+        refreshInProgress = false
         if (isCurrent) setIsLoading(false)
       }
     }

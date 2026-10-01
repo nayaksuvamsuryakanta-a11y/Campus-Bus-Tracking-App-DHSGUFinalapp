@@ -1,5 +1,5 @@
 import argparse
-from datetime import datetime
+from datetime import datetime, timezone
 
 from database import get_db_connection, init_db
 
@@ -272,7 +272,7 @@ def _upsert_bus(connection, route, route_id):
             route["status"],
             DEMO_MAP_CENTER[0] + first_stop[3],
             DEMO_MAP_CENTER[1] + first_stop[4],
-            datetime.now().isoformat(timespec="seconds"),
+            datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
         ),
     )
 

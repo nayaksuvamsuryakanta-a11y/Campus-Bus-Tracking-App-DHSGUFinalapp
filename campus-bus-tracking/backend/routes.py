@@ -2,7 +2,7 @@ import hmac
 import json
 import math
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 from flask import Blueprint, current_app, jsonify, request
 
@@ -40,7 +40,7 @@ def _is_active_value(value):
 def _driver_pin_error():
     # This is a demo safeguard, not real authentication.
     expected_pin = os.getenv("DRIVER_PIN")
-    if expected_pin is not None and not hmac.compare_digest(
+    if expected_pin and not hmac.compare_digest(
         request.headers.get("X-Driver-Pin", ""), expected_pin
     ):
         return _error("A valid X-Driver-Pin header is required", 401)
@@ -307,7 +307,7 @@ def update_bus_location(bus_id):
     if not valid_latitude or not valid_longitude:
         return _error("Valid latitude and longitude are required", 400)
 
-    updated_at = datetime.now().isoformat(timespec="seconds")
+    updated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
     connection = get_db_connection()
     try:
         bus = connection.execute(
