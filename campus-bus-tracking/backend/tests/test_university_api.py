@@ -251,7 +251,7 @@ class UniversityPlaceApiTests(unittest.TestCase):
             [400, 400, 400, 400],
         )
 
-    def test_driver_pin_required_only_when_configured(self):
+    def test_driver_pin_is_required_when_configured(self):
         connection = database.get_db_connection()
         cursor = connection.execute(
             "INSERT INTO routes (route_name, start_time, end_time) VALUES (?, ?, ?)",
@@ -306,6 +306,30 @@ class UniversityPlaceApiTests(unittest.TestCase):
         self.assertEqual([response.status_code for response in denied_responses], [401] * 4)
         self.assertEqual([response.status_code for response in accepted_responses], [200, 200, 201, 200])
 
+    def test_unset_driver_pin_uses_demo_default(self):
+        connection = database.get_db_connection()
+        cursor = connection.execute(
+            "INSERT INTO buses (bus_number) VALUES (?)", ("DEFAULT-PIN-TEST-BUS",)
+        )
+        connection.commit()
+        bus_id = cursor.lastrowid
+        connection.close()
+
+        with patch.dict(os.environ):
+            os.environ.pop("DRIVER_PIN", None)
+            denied = self.client.post(
+                f"/api/buses/{bus_id}/location",
+                json={"latitude": 23.84, "longitude": 78.75},
+            )
+            accepted = self.client.post(
+                f"/api/buses/{bus_id}/location",
+                json={"latitude": 23.84, "longitude": 78.75},
+                headers={"X-Driver-Pin": "dhsgu2026"},
+            )
+
+        self.assertEqual(denied.status_code, 401)
+        self.assertEqual(accepted.status_code, 200)
+
     def test_blank_driver_pin_disables_optional_pin_check(self):
         connection = database.get_db_connection()
         cursor = connection.execute(
@@ -332,10 +356,11 @@ class UniversityPlaceApiTests(unittest.TestCase):
         bus_id = cursor.lastrowid
         connection.close()
 
-        response = self.client.post(
-            f"/api/buses/{bus_id}/location",
-            json={"latitude": 23.84, "longitude": 78.75},
-        )
+        with patch.dict(os.environ, {"DRIVER_PIN": ""}):
+            response = self.client.post(
+                f"/api/buses/{bus_id}/location",
+                json={"latitude": 23.84, "longitude": 78.75},
+            )
 
         self.assertEqual(response.status_code, 200)
         timestamp = response.get_json()["updated_at"]

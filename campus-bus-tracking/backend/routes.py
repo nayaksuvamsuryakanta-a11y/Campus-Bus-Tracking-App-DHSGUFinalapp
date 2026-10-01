@@ -39,8 +39,10 @@ def _is_active_value(value):
 
 def _driver_pin_error():
     # This is a demo safeguard, not real authentication.
-    expected_pin = os.getenv("DRIVER_PIN")
-    if expected_pin and not hmac.compare_digest(
+    configured_pin = os.getenv("DRIVER_PIN")
+    # Use the demo default only when unset; an explicit blank disables the check.
+    expected_pin = "dhsgu2026" if configured_pin is None else configured_pin
+    if expected_pin.strip() and not hmac.compare_digest(
         request.headers.get("X-Driver-Pin", ""), expected_pin
     ):
         return _error("A valid X-Driver-Pin header is required", 401)

@@ -10,7 +10,11 @@ from routes import api
 app = Flask(__name__)
 init_db()
 
-allowed_origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
+allowed_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://campus-bus-tracking-app-dhsgu-finalapp.vercel.app",
+]
 frontend_origin = os.getenv("FRONTEND_ORIGIN")
 if frontend_origin:
     allowed_origins.append(frontend_origin)
