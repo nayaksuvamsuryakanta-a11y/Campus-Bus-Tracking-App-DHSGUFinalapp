@@ -3,27 +3,20 @@ import { render, screen } from '@testing-library/react'
 import AlertBanner from '../components/AlertBanner.jsx'
 
 describe('AlertBanner', () => {
-  it('uses the danger variant for delay alerts', () => {
+  it.each([
+    ['DELAY', 'danger'],
+    ['CANCELLATION', 'danger'],
+    ['ROUTE_CHANGE', 'warning'],
+    ['GENERAL', 'info'],
+  ])('maps %s alerts to the Bootstrap %s variant', (alertType, variant) => {
     render(
       <AlertBanner
-        title="Bus delayed"
-        message="The bus is running late."
-        alertType="DELAY"
+        title={`${alertType} notice`}
+        message="Service update."
+        alertType={alertType}
       />,
     )
 
-    expect(screen.getByRole('alert')).toHaveClass('alert-danger')
-  })
-
-  it('uses the warning variant for route changes', () => {
-    render(
-      <AlertBanner
-        title="Route changed"
-        message="The route has changed."
-        alertType="ROUTE_CHANGE"
-      />,
-    )
-
-    expect(screen.getByRole('alert')).toHaveClass('alert-warning')
+    expect(screen.getByRole('alert')).toHaveClass(`alert-${variant}`)
   })
 })
