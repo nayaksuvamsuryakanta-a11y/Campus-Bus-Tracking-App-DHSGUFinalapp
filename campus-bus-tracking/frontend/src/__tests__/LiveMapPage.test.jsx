@@ -57,24 +57,66 @@ const campusLoopStops = [
   longitude,
 }))
 
-const roadCoordinates = [
-  [78.7702, 23.8205],
-  [78.7815, 23.8304],
-  [78.7708, 23.8276],
-]
+function getPairFromUrl(url) {
+  const waypoints = url.split('/driving/')[1].split('?')[0]
+  return waypoints.split(';').map((waypoint) => waypoint.split(',').map(Number))
+}
 
-function createRoadRouteResponse() {
+function roadMiddle(start, end) {
+  return [
+    (start[0] + end[0]) / 2 + 0.0001,
+    (start[1] + end[1]) / 2 + 0.0001,
+  ]
+}
+
+function createRoadRouteResponse(url, { distanceMeters = 1000, detour = false } = {}) {
+  const [start, end] = getPairFromUrl(url)
+  const coordinates = detour
+    ? [start, [78.9, 23.7], end]
+    : [start, roadMiddle(start, end), end]
   return {
     ok: true,
     json: vi.fn().mockResolvedValue({
       code: 'Ok',
       routes: [{
-        geometry: { coordinates: roadCoordinates },
-        distance: 12345,
-        duration: 2480,
+        geometry: { coordinates },
+        distance: distanceMeters,
+        duration: 9000,
       }],
     }),
   }
+}
+
+function expectedRoadCoordinates(stops, straightSegmentIndex = -1) {
+  const coordinates = []
+  for (let index = 0; index < stops.length - 1; index += 1) {
+    const start = [Number(stops[index].longitude), Number(stops[index].latitude)]
+    const end = [Number(stops[index + 1].longitude), Number(stops[index + 1].latitude)]
+    const segment = index === straightSegmentIndex
+      ? [start, end]
+      : [start, roadMiddle(start, end), end]
+    segment.forEach((coordinate) => {
+      const previous = coordinates.at(-1)
+      if (previous?.[0] === coordinate[0] && previous?.[1] === coordinate[1]) return
+      coordinates.push(coordinate)
+    })
+  }
+  return coordinates
+}
+
+function haversineDistanceKm(start, end) {
+  const radians = Math.PI / 180
+  const latitude1 = Number(start.latitude) * radians
+  const latitude2 = Number(end.latitude) * radians
+  const latitudeDelta = latitude2 - latitude1
+  const longitudeDelta = (Number(end.longitude) - Number(start.longitude)) * radians
+  const haversine = Math.sin(latitudeDelta / 2) ** 2
+    + Math.cos(latitude1) * Math.cos(latitude2) * Math.sin(longitudeDelta / 2) ** 2
+  return 6371 * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine))
+}
+
+function routeUrl(start, end) {
+  return `https://router.project-osrm.org/route/v1/driving/${start.longitude},${start.latitude};${end.longitude},${end.latitude}?overview=full&geometries=geojson`
 }
 
 function renderMap(entry = '/live-map') {
@@ -101,7 +143,9 @@ afterEach(() => {
 
 describe('LiveMapPage', () => {
   beforeEach(() => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(createRoadRouteResponse()))
+    vi.stubGlobal('fetch', vi.fn((url) => (
+      Promise.resolve(createRoadRouteResponse(url))
+    )))
     getBuses.mockResolvedValue([delayedBus])
     getPlaces.mockResolvedValue([library])
     getRoutes.mockResolvedValue([{ id: 1, route_name: 'Campus Circle Route (DEMO)' }])
@@ -134,10 +178,12 @@ describe('LiveMapPage', () => {
     expect(L.divIcon).toHaveBeenCalledWith(expect.objectContaining({
       html: expect.stringContaining('bg-danger'),
     }))
-    expect(await screen.findByText('≈ 12.3 km • ~41 min')).toBeInTheDocument()
+    expect(await screen.findByText('≈ 6.0 km • ~18 min')).toBeInTheDocument()
     const routeLines = await screen.findAllByTestId('polyline')
     expect(routeLines).toHaveLength(2)
-    const routeVertices = JSON.stringify(roadCoordinates.map(([longitude, latitude]) => [latitude, longitude]))
+    const routeVertices = JSON.stringify(
+      expectedRoadCoordinates(campusLoopStops).map(([longitude, latitude]) => [latitude, longitude]),
+    )
     routeLines.forEach((routeLine) => {
       expect(routeLine).toHaveAttribute('data-positions', routeVertices)
     })
@@ -155,14 +201,15 @@ describe('LiveMapPage', () => {
     )
     expect(screen.getByRole('heading', { level: 2, name: 'Campus Circle Route (DEMO)' }))
       .toBeInTheDocument()
-    expect(screen.getByTestId('route-summary')).toHaveTextContent('≈ 12.3 km • ~41 min')
+    expect(screen.getByTestId('route-summary')).toHaveTextContent('≈ 6.0 km • ~18 min')
     expect(screen.queryByText('Road routing unavailable - showing direct demo line.'))
       .not.toBeInTheDocument()
-    expect(globalThis.fetch).toHaveBeenCalledTimes(1)
-    expect(globalThis.fetch).toHaveBeenCalledWith(
-      'https://router.project-osrm.org/route/v1/driving/78.7700109,23.820405;78.7817,23.8306;78.7816,23.8245;78.782,23.8241;78.7829,23.8227;78.7804,23.8298;78.7708,23.8276?overview=full&geometries=geojson&alternatives=false&steps=false',
-      expect.objectContaining({ signal: expect.any(AbortSignal) }),
-    )
+    const expectedUrls = campusLoopStops.slice(1).map((stop, index) => (
+      routeUrl(campusLoopStops[index], stop)
+    ))
+    expect(globalThis.fetch.mock.calls.map(([url]) => url)).toEqual(expectedUrls)
+    expect(globalThis.fetch.mock.calls.every(([, options]) => options.signal instanceof AbortSignal))
+      .toBe(true)
     const itineraryRows = screen.getAllByRole('listitem')
     expect(itineraryRows).toHaveLength(7)
     expect(itineraryRows.map((row) => row.querySelector('.live-map-stop-name').textContent))
@@ -196,13 +243,13 @@ describe('LiveMapPage', () => {
     const { unmount } = renderMap()
     await flushPromises()
     expect(getBuses).toHaveBeenCalledTimes(1)
-    expect(globalThis.fetch).toHaveBeenCalledTimes(1)
+    expect(globalThis.fetch).toHaveBeenCalledTimes(6)
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(10000)
     })
     expect(getBuses).toHaveBeenCalledTimes(2)
-    expect(globalThis.fetch).toHaveBeenCalledTimes(1)
+    expect(globalThis.fetch).toHaveBeenCalledTimes(6)
 
     unmount()
     await act(async () => {
@@ -238,7 +285,7 @@ describe('LiveMapPage', () => {
   })
 
   it('uses straight-line geometry and summary when OSRM routing fails', async () => {
-    globalThis.fetch.mockRejectedValueOnce(new Error('OSRM unavailable'))
+    globalThis.fetch.mockRejectedValue(new Error('OSRM unavailable'))
     renderMap()
 
     expect(await screen.findByText('Road routing unavailable - showing direct demo line.'))
@@ -252,7 +299,42 @@ describe('LiveMapPage', () => {
       expect(routeLine).toHaveAttribute('data-positions', directRouteVertices)
     })
     expect(screen.getByTestId('route-summary')).toHaveTextContent('≈ 4.4 km • ~13 min')
-    expect(globalThis.fetch).toHaveBeenCalledTimes(1)
+    expect(globalThis.fetch).toHaveBeenCalledTimes(6)
+  })
+
+  it('falls back to a straight segment only when a pair exceeds the detour guard', async () => {
+    const detourSegmentIndex = 2
+    globalThis.fetch.mockImplementation((url) => {
+      const pair = getPairFromUrl(url)
+      const detour = pair[0][0] === Number(campusLoopStops[detourSegmentIndex].longitude)
+        && pair[1][0] === Number(campusLoopStops[detourSegmentIndex + 1].longitude)
+      return Promise.resolve(createRoadRouteResponse(url, {
+        distanceMeters: detour ? 100000 : 1000,
+        detour,
+      }))
+    })
+    renderMap()
+
+    const expectedDistanceKm = campusLoopStops.slice(1).reduce((sum, stop, index) => (
+      sum + (index === detourSegmentIndex
+        ? haversineDistanceKm(campusLoopStops[index], stop)
+        : 1)
+    ), 0)
+    const expectedSummary = `≈ ${expectedDistanceKm.toFixed(1)} km • ~${Math.round((expectedDistanceKm / 20) * 60)} min`
+    expect(await screen.findByText(expectedSummary)).toBeInTheDocument()
+
+    const routeVertices = JSON.stringify(
+      expectedRoadCoordinates(campusLoopStops, detourSegmentIndex)
+        .map(([longitude, latitude]) => [latitude, longitude]),
+    )
+    const routeLines = screen.getAllByTestId('polyline')
+    expect(routeLines).toHaveLength(2)
+    routeLines.forEach((routeLine) => {
+      expect(routeLine).toHaveAttribute('data-positions', routeVertices)
+    })
+    expect(screen.queryByText('Road routing unavailable - showing direct demo line.'))
+      .not.toBeInTheDocument()
+    expect(globalThis.fetch).toHaveBeenCalledTimes(6)
   })
 
   it('flies to the place selected by the place query parameter', async () => {

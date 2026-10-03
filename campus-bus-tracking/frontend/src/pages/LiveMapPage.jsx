@@ -133,7 +133,7 @@ function LiveMapPage() {
   const [roadRoutingResult, setRoadRoutingResult] = useState({
     routeKey: '',
     roadRoute: null,
-    unavailable: false,
+    roadUsed: null,
   })
 
   useEffect(() => {
@@ -232,7 +232,7 @@ function LiveMapPage() {
         setRoadRoutingResult({
           routeKey,
           roadRoute: result,
-          unavailable: result === null,
+          roadUsed: result?.roadUsed ?? null,
         })
       }
     })
@@ -244,7 +244,7 @@ function LiveMapPage() {
 
   const hasRoadRoutingResult = roadRoutingResult.routeKey === routeKey
   const roadRoute = hasRoadRoutingResult ? roadRoutingResult.roadRoute : null
-  const roadRoutingUnavailable = hasRoadRoutingResult && roadRoutingResult.unavailable
+  const roadRoutingUnavailable = hasRoadRoutingResult && roadRoutingResult.roadUsed === false
   const directRoutePositions = routeStops
     .map((stop) => [Number(stop.latitude), Number(stop.longitude)])
   const routePositions = roadRoute
