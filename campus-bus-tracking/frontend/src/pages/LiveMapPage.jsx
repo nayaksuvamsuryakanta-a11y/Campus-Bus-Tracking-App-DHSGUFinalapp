@@ -14,6 +14,7 @@ import DemoBadge from '../components/DemoBadge.jsx'
 import { UNIVERSITY } from '../config/university.js'
 import { getBuses, getRouteDetails, getRoutes } from '../services/busService.js'
 import { getPlaces } from '../services/placeService.js'
+import { fetchRoadRoute } from '../services/roadRoutingService.js'
 
 delete L.Icon.Default.prototype._getIconUrl
 L.Icon.Default.mergeOptions({
@@ -129,6 +130,11 @@ function LiveMapPage() {
   const [showPlaces, setShowPlaces] = useState(true)
   const [isItineraryOpen, setIsItineraryOpen] = useState(false)
   const [lastUpdated, setLastUpdated] = useState(null)
+  const [roadRoutingResult, setRoadRoutingResult] = useState({
+    routeKey: '',
+    roadRoute: null,
+    unavailable: false,
+  })
 
   useEffect(() => {
     let isCurrent = true
@@ -199,10 +205,55 @@ function LiveMapPage() {
   const mappedPlaces = places.filter(hasCoordinates)
   const mappedStops = stops.filter(hasCoordinates)
   const routeStops = mappedStops.filter((stop) => stop.route_name === DEMO_ROUTE_NAME)
-  const routePositions = routeStops
+  const routeKey = routeStops
+    .map((stop) => `${stop.longitude},${stop.latitude}`)
+    .join(';')
+
+  useEffect(() => {
+    let isCurrent = true
+    if (!routeKey) {
+      return () => {
+        isCurrent = false
+      }
+    }
+
+    const routingStops = routeKey.split(';').map((coordinate) => {
+      const [longitude, latitude] = coordinate.split(',').map(Number)
+      return { longitude, latitude }
+    })
+    if (routingStops.length < 2) {
+      return () => {
+        isCurrent = false
+      }
+    }
+
+    fetchRoadRoute(routingStops).then((result) => {
+      if (isCurrent) {
+        setRoadRoutingResult({
+          routeKey,
+          roadRoute: result,
+          unavailable: result === null,
+        })
+      }
+    })
+
+    return () => {
+      isCurrent = false
+    }
+  }, [routeKey])
+
+  const hasRoadRoutingResult = roadRoutingResult.routeKey === routeKey
+  const roadRoute = hasRoadRoutingResult ? roadRoutingResult.roadRoute : null
+  const roadRoutingUnavailable = hasRoadRoutingResult && roadRoutingResult.unavailable
+  const directRoutePositions = routeStops
     .map((stop) => [Number(stop.latitude), Number(stop.longitude)])
-  const routeDistanceKm = haversineDistanceKm(routeStops)
-  const routeMinutes = Math.round((routeDistanceKm / 20) * 60)
+  const routePositions = roadRoute
+    ? roadRoute.coordinates.map(([longitude, latitude]) => [latitude, longitude])
+    : directRoutePositions
+  const routeDistanceKm = roadRoute?.distanceKm ?? haversineDistanceKm(routeStops)
+  const routeMinutes = roadRoute
+    ? Math.round(roadRoute.durationMin)
+    : Math.round((routeDistanceKm / 20) * 60)
   const routeSummary = routeStops.length > 1
     ? `≈ ${routeDistanceKm.toFixed(1)} km • ~${routeMinutes} min`
     : 'Loading route details'
@@ -349,6 +400,11 @@ function LiveMapPage() {
             <div>
               <h2>{routeName}</h2>
               <p data-testid="route-summary">{routeSummary}</p>
+              {roadRoutingUnavailable && (
+                <span className="live-map-route-note">
+                  Road routing unavailable - showing direct demo line.
+                </span>
+              )}
             </div>
             <button
               className="live-map-sheet-toggle"

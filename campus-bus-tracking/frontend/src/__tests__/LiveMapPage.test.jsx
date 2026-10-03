@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('react-leaflet', async () => {
   const { createReactLeafletMock } = await import('./helpers.js')
@@ -57,6 +57,26 @@ const campusLoopStops = [
   longitude,
 }))
 
+const roadCoordinates = [
+  [78.7702, 23.8205],
+  [78.7815, 23.8304],
+  [78.7708, 23.8276],
+]
+
+function createRoadRouteResponse() {
+  return {
+    ok: true,
+    json: vi.fn().mockResolvedValue({
+      code: 'Ok',
+      routes: [{
+        geometry: { coordinates: roadCoordinates },
+        distance: 12345,
+        duration: 2480,
+      }],
+    }),
+  }
+}
+
 function renderMap(entry = '/live-map') {
   return render(
     <MemoryRouter initialEntries={[entry]}>
@@ -70,11 +90,18 @@ async function flushPromises() {
     await Promise.resolve()
     await Promise.resolve()
     await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
   })
 }
 
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
+
 describe('LiveMapPage', () => {
   beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(createRoadRouteResponse()))
     getBuses.mockResolvedValue([delayedBus])
     getPlaces.mockResolvedValue([library])
     getRoutes.mockResolvedValue([{ id: 1, route_name: 'Campus Circle Route (DEMO)' }])
@@ -107,11 +134,10 @@ describe('LiveMapPage', () => {
     expect(L.divIcon).toHaveBeenCalledWith(expect.objectContaining({
       html: expect.stringContaining('bg-danger'),
     }))
+    expect(await screen.findByText('≈ 12.3 km • ~41 min')).toBeInTheDocument()
     const routeLines = await screen.findAllByTestId('polyline')
     expect(routeLines).toHaveLength(2)
-    const routeVertices = JSON.stringify(
-      campusLoopStops.map((stop) => [stop.latitude, stop.longitude]),
-    )
+    const routeVertices = JSON.stringify(roadCoordinates.map(([longitude, latitude]) => [latitude, longitude]))
     routeLines.forEach((routeLine) => {
       expect(routeLine).toHaveAttribute('data-positions', routeVertices)
     })
@@ -129,8 +155,14 @@ describe('LiveMapPage', () => {
     )
     expect(screen.getByRole('heading', { level: 2, name: 'Campus Circle Route (DEMO)' }))
       .toBeInTheDocument()
-    expect(screen.getByTestId('route-summary').textContent)
-      .toMatch(/^≈ \d+\.\d km • ~\d+ min$/)
+    expect(screen.getByTestId('route-summary')).toHaveTextContent('≈ 12.3 km • ~41 min')
+    expect(screen.queryByText('Road routing unavailable - showing direct demo line.'))
+      .not.toBeInTheDocument()
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1)
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      'https://router.project-osrm.org/route/v1/driving/78.7700109,23.820405;78.7817,23.8306;78.7816,23.8245;78.782,23.8241;78.7829,23.8227;78.7804,23.8298;78.7708,23.8276?overview=full&geometries=geojson&alternatives=false&steps=false',
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    )
     const itineraryRows = screen.getAllByRole('listitem')
     expect(itineraryRows).toHaveLength(7)
     expect(itineraryRows.map((row) => row.querySelector('.live-map-stop-name').textContent))
@@ -164,11 +196,13 @@ describe('LiveMapPage', () => {
     const { unmount } = renderMap()
     await flushPromises()
     expect(getBuses).toHaveBeenCalledTimes(1)
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1)
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(10000)
     })
     expect(getBuses).toHaveBeenCalledTimes(2)
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1)
 
     unmount()
     await act(async () => {
@@ -201,6 +235,24 @@ describe('LiveMapPage', () => {
     expect(getPlaces).toHaveBeenCalledTimes(1)
     expect(getRoutes).toHaveBeenCalledTimes(1)
     expect(getRouteDetails).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses straight-line geometry and summary when OSRM routing fails', async () => {
+    globalThis.fetch.mockRejectedValueOnce(new Error('OSRM unavailable'))
+    renderMap()
+
+    expect(await screen.findByText('Road routing unavailable - showing direct demo line.'))
+      .toBeInTheDocument()
+    const directRouteVertices = JSON.stringify(
+      campusLoopStops.map((stop) => [stop.latitude, stop.longitude]),
+    )
+    const routeLines = screen.getAllByTestId('polyline')
+    expect(routeLines).toHaveLength(2)
+    routeLines.forEach((routeLine) => {
+      expect(routeLine).toHaveAttribute('data-positions', directRouteVertices)
+    })
+    expect(screen.getByTestId('route-summary')).toHaveTextContent('≈ 4.4 km • ~13 min')
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1)
   })
 
   it('flies to the place selected by the place query parameter', async () => {

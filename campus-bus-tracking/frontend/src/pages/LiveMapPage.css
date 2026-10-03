@@ -178,6 +178,14 @@
   font-size: 13px;
 }
 
+.live-map-route-note {
+  display: block;
+  margin-top: 4px;
+  color: #80868b;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 .live-map-sheet-toggle {
   display: none;
   width: 36px;
