@@ -32,6 +32,7 @@ export function createReactLeafletMock() {
       'data-url': props.url,
       'data-attribution': props.attribution,
       'data-max-zoom': props.maxZoom,
+      'data-class-name': props.className,
     })),
     Marker: mockContainer('marker', (props) => ({
       'data-position': JSON.stringify(props.position),

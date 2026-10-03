@@ -92,13 +92,14 @@ describe('LiveMapPage', () => {
     expect(screen.getByTestId('map')).toHaveAttribute('data-zoom', '15')
     expect(screen.getByTestId('tile-layer')).toHaveAttribute(
       'data-url',
-      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+      'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     )
     expect(screen.getByTestId('tile-layer')).toHaveAttribute(
       'data-attribution',
-      'Tiles © Esri — Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, swisstopo, and the GIS User Community',
+      '© OpenStreetMap contributors',
     )
     expect(screen.getByTestId('tile-layer')).toHaveAttribute('data-max-zoom', '19')
+    expect(screen.getByTestId('tile-layer')).toHaveAttribute('data-class-name', 'gm-muted-tiles')
     const busMarker = screen.getAllByTestId('marker')
       .find((marker) => marker.getAttribute('data-position') === '[23.820405,78.7700109]')
     expect(busMarker).toBeInTheDocument()
