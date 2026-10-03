@@ -15,7 +15,6 @@ export const UNIVERSITY = {
     railwayStation: 'About 4-5 km; sources differ.',
     airport: 'About 13 km to Dhana Airport.',
   },
-  // TODO: Replace this illustrative center with coordinates verified on OpenStreetMap.
-  MAP_CENTER: [23.84, 78.75],
-  MAP_ZOOM: 14,
+  MAP_CENTER: [23.8261, 78.7772],
+  MAP_ZOOM: 15,
 }

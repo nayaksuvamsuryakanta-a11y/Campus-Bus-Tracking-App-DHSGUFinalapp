@@ -24,7 +24,10 @@ function mockContainer(testId, props = {}) {
 
 export function createReactLeafletMock() {
   return {
-    MapContainer: mockContainer('map', () => ({})),
+    MapContainer: mockContainer('map', (props) => ({
+      'data-center': JSON.stringify(props.center),
+      'data-zoom': props.zoom,
+    })),
     TileLayer: () => null,
     Marker: mockContainer('marker', (props) => ({
       'data-position': JSON.stringify(props.position),
@@ -36,6 +39,7 @@ export function createReactLeafletMock() {
     })),
     Polyline: mockContainer('polyline', (props) => ({
       'data-positions': JSON.stringify(props.positions),
+      'data-path-options': JSON.stringify(props.pathOptions),
     })),
     useMap: () => mockMap,
   }
@@ -70,7 +74,7 @@ function setGeolocation(getCurrentPosition) {
 }
 
 export function mockGeolocationSuccess(
-  coords = { latitude: 23.84, longitude: 78.75 },
+  coords = { latitude: 23.8276, longitude: 78.7708 },
 ) {
   return setGeolocation(vi.fn((success) => success({ coords })))
 }

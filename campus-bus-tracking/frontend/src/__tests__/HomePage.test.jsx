@@ -21,11 +21,9 @@ function renderPage() {
 
 describe('HomePage', () => {
   beforeEach(() => {
-    getRoutes.mockResolvedValue([{ id: 1 }, { id: 2 }])
+    getRoutes.mockResolvedValue([{ id: 1, route_name: 'Campus Circle Route (DEMO)' }])
     getBuses.mockResolvedValue([
-      { id: 1, status: 'DELAYED' },
-      { id: 2, status: 'ON_TIME' },
-      { id: 3, status: 'DELAYED' },
+      { id: 101, bus_number: 'BUS-101', status: 'DELAYED' },
     ])
     getAlerts.mockResolvedValue(activeAlerts)
   })
@@ -34,10 +32,10 @@ describe('HomePage', () => {
     renderPage()
 
     await screen.findByText('First delay')
-    expect(screen.getByText('Total Routes').nextElementSibling).toHaveTextContent('2')
-    expect(screen.getByText('Total Buses').nextElementSibling).toHaveTextContent('3')
+    expect(screen.getByText('Total Routes').nextElementSibling).toHaveTextContent('1')
+    expect(screen.getByText('Total Buses').nextElementSibling).toHaveTextContent('1')
     expect(screen.getByText('Active Alerts').nextElementSibling).toHaveTextContent('2')
-    expect(screen.getByText('Delayed Buses').nextElementSibling).toHaveTextContent('2')
+    expect(screen.getByText('Delayed Buses').nextElementSibling).toHaveTextContent('1')
     expect(screen.getByRole('alert')).toHaveClass('alert-danger')
     expect(screen.queryByText('Later notice')).not.toBeInTheDocument()
   })

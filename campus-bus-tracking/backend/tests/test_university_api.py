@@ -44,8 +44,8 @@ class UniversityPlaceApiTests(unittest.TestCase):
                (name, category, description, latitude, longitude, is_verified, notes)
                VALUES (?, ?, ?, ?, ?, 0, ?)""",
             [
-                ("Central Library", "LIBRARY", "Demo location", 23.84, 78.75, "coordinates to be confirmed on site"),
-                ("Nivedita Girls Hostel", "HOSTEL", "Demo location", 23.841, 78.751, "coordinates to be confirmed on site"),
+                ("Jawaharlal Nehru Central Library", "LIBRARY", "Demo location", 23.8276, 78.7708, "coordinates to be confirmed on site"),
+                ("Rani Laxmi Bai Girls Hostel", "HOSTEL", "Demo location", 23.8306, 78.7817, "coordinates to be confirmed on site"),
             ],
         )
         connection.commit()
@@ -132,7 +132,10 @@ class UniversityPlaceApiTests(unittest.TestCase):
         invalid = self.client.get("/api/places?category=NOT_A_CATEGORY")
 
         self.assertEqual(filtered.status_code, 200)
-        self.assertEqual([place["name"] for place in filtered.get_json()], ["Central Library"])
+        self.assertEqual(
+            [place["name"] for place in filtered.get_json()],
+            ["Jawaharlal Nehru Central Library"],
+        )
         self.assertEqual(invalid.status_code, 400)
         self.assertIn("error", invalid.get_json())
 
@@ -217,12 +220,12 @@ class UniversityPlaceApiTests(unittest.TestCase):
         with patch.dict(os.environ, {"DRIVER_PIN": "validation-pin"}):
             invalid_latitude = self.client.post(
                 f"/api/buses/{bus_cursor.lastrowid}/location",
-                json={"latitude": 91, "longitude": 78.75},
+                json={"latitude": 91, "longitude": 78.7708},
                 headers=headers,
             )
             invalid_longitude = self.client.post(
                 f"/api/buses/{bus_cursor.lastrowid}/location",
-                json={"latitude": 23.84, "longitude": -181},
+                json={"latitude": 23.8276, "longitude": -181},
                 headers=headers,
             )
             invalid_status = self.client.post(
@@ -270,7 +273,7 @@ class UniversityPlaceApiTests(unittest.TestCase):
         connection.close()
         bus_id = bus_cursor.lastrowid
         alert_id = alert_cursor.lastrowid
-        location_body = {"latitude": 23.84, "longitude": 78.75}
+        location_body = {"latitude": 23.8276, "longitude": 78.7708}
         alert_body = {
             "title": "New test alert",
             "message": "PIN test",
@@ -319,11 +322,11 @@ class UniversityPlaceApiTests(unittest.TestCase):
             os.environ.pop("DRIVER_PIN", None)
             denied = self.client.post(
                 f"/api/buses/{bus_id}/location",
-                json={"latitude": 23.84, "longitude": 78.75},
+                json={"latitude": 23.8276, "longitude": 78.7708},
             )
             accepted = self.client.post(
                 f"/api/buses/{bus_id}/location",
-                json={"latitude": 23.84, "longitude": 78.75},
+                json={"latitude": 23.8276, "longitude": 78.7708},
                 headers={"X-Driver-Pin": "dhsgu2026"},
             )
 
@@ -342,7 +345,7 @@ class UniversityPlaceApiTests(unittest.TestCase):
         with patch.dict(os.environ, {"DRIVER_PIN": ""}):
             response = self.client.post(
                 f"/api/buses/{bus_id}/location",
-                json={"latitude": 23.84, "longitude": 78.75},
+                json={"latitude": 23.8276, "longitude": 78.7708},
             )
 
         self.assertEqual(response.status_code, 200)
@@ -359,7 +362,7 @@ class UniversityPlaceApiTests(unittest.TestCase):
         with patch.dict(os.environ, {"DRIVER_PIN": ""}):
             response = self.client.post(
                 f"/api/buses/{bus_id}/location",
-                json={"latitude": 23.84, "longitude": 78.75},
+                json={"latitude": 23.8276, "longitude": 78.7708},
             )
 
         self.assertEqual(response.status_code, 200)
@@ -390,6 +393,36 @@ class UniversityPlaceApiTests(unittest.TestCase):
         connection.close()
 
         seed_database()
+        connection = database.get_db_connection()
+        stale_route = connection.execute(
+            """INSERT INTO routes (route_name, start_time, end_time, is_verified)
+               VALUES (?, ?, ?, 0)""",
+            ("Hostel Express (DEMO)", "07:00", "22:00"),
+        )
+        connection.execute(
+            """INSERT INTO stops
+               (route_id, stop_name, latitude, longitude, is_verified)
+               VALUES (?, ?, ?, ?, 0)""",
+            (stale_route.lastrowid, "Old placeholder stop", 23.84, 78.75),
+        )
+        connection.execute(
+            """INSERT INTO buses (bus_number, route_id, is_verified)
+               VALUES (?, ?, 0)""",
+            ("BUS-202", stale_route.lastrowid),
+        )
+        connection.execute(
+            """INSERT INTO campus_places
+               (name, category, latitude, longitude, is_verified)
+               VALUES (?, ?, ?, ?, 0)""",
+            ("Old placeholder place", "OTHER", 23.84, 78.75),
+        )
+        connection.execute(
+            """INSERT INTO alerts (title, message, is_active, is_demo)
+               VALUES (?, ?, 1, 1)""",
+            ("(DEMO) Old route alert", "Obsolete demo alert"),
+        )
+        connection.commit()
+        connection.close()
         seed_database()
         connection = database.get_db_connection()
         try:
@@ -407,17 +440,72 @@ class UniversityPlaceApiTests(unittest.TestCase):
                 table: connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
                 for table in ("routes", "stops", "buses", "alerts", "campus_places")
             }
-            self.assertEqual(after_reset["routes"], 4)
-            self.assertEqual(after_reset["stops"], 15)
-            self.assertEqual(after_reset["buses"], 3)
-            self.assertEqual(after_reset["alerts"], 4)
-            self.assertEqual(after_reset["campus_places"], 21)
+            self.assertEqual(after_reset["routes"], 2)
+            self.assertEqual(after_reset["stops"], 8)
+            self.assertEqual(after_reset["buses"], 1)
+            self.assertEqual(after_reset["alerts"], 2)
+            self.assertEqual(after_reset["campus_places"], 6)
             self.assertEqual(
                 connection.execute(
                     "SELECT is_verified FROM routes WHERE id = ?", (verified_route_id,)
                 ).fetchone()["is_verified"],
                 1,
             )
+            demo_route = connection.execute(
+                "SELECT id, route_name FROM routes WHERE is_verified = 0"
+            ).fetchone()
+            self.assertEqual(demo_route["route_name"], "Campus Circle Route (DEMO)")
+            expected_stops = [
+                ("Jawaharlal Nehru Central Library", 23.8276, 78.7708),
+                ("Rani Laxmi Bai Girls Hostel", 23.8306, 78.7817),
+                ("Jawaharlal Nehru Central Library", 23.8276, 78.7708),
+                ("Vivekanand Boys Hostel", 23.8239, 78.7700),
+                ("Jawaharlal Nehru Central Library", 23.8276, 78.7708),
+                ("Valley Campus", 23.8241, 78.7816),
+                ("Department of Computer Science and Applications", 23.8241, 78.7820),
+                ("Jawaharlal Nehru Central Library", 23.8276, 78.7708),
+            ]
+            stops = connection.execute(
+                """SELECT stop_name, latitude, longitude FROM stops
+                   WHERE route_id = ? ORDER BY id""",
+                (demo_route["id"],),
+            ).fetchall()
+            self.assertEqual(
+                [(stop["stop_name"], stop["latitude"], stop["longitude"]) for stop in stops],
+                expected_stops,
+            )
+            buses = connection.execute(
+                """SELECT bus_number, status, latitude, longitude, route_id
+                   FROM buses WHERE is_verified = 0"""
+            ).fetchall()
+            self.assertEqual(len(buses), 1)
+            self.assertEqual(
+                tuple(
+                    buses[0][key]
+                    for key in ("bus_number", "status", "latitude", "longitude", "route_id")
+                ),
+                ("BUS-101", "ON_TIME", 23.8276, 78.7708, demo_route["id"]),
+            )
+            places = connection.execute(
+                """SELECT name, latitude, longitude FROM campus_places
+                   WHERE is_verified = 0"""
+            ).fetchall()
+            self.assertEqual(
+                {(place["name"], place["latitude"], place["longitude"]) for place in places},
+                {
+                    ("Jawaharlal Nehru Central Library", 23.8276, 78.7708),
+                    ("Rani Laxmi Bai Girls Hostel", 23.8306, 78.7817),
+                    ("Vivekanand Boys Hostel", 23.8239, 78.7700),
+                    ("Valley Campus", 23.8241, 78.7816),
+                    ("Department of Computer Science and Applications", 23.8241, 78.7820),
+                },
+            )
+            demo_alerts = connection.execute(
+                "SELECT title, message, is_active FROM alerts WHERE is_demo = 1"
+            ).fetchall()
+            self.assertEqual(len(demo_alerts), 1)
+            self.assertEqual(demo_alerts[0]["is_active"], 1)
+            self.assertIn("Campus Circle Route (DEMO)", demo_alerts[0]["message"])
             self.assertEqual(
                 connection.execute(
                     "SELECT COUNT(*) FROM alerts WHERE title = ?", ("User alert",)
@@ -492,7 +580,7 @@ class UniversityPlaceApiTests(unittest.TestCase):
         self.assertIn("Verified Auditorium", system_instruction)
         self.assertIn("Active demo delay", system_instruction)
         self.assertIn("Test route (DEMO)", system_instruction)
-        self.assertIn("Nivedita Girls Hostel", system_instruction)
+        self.assertIn("Rani Laxmi Bai Girls Hostel", system_instruction)
         self.assertIn("demo_place_names_only", system_instruction)
 
     def test_chat_falls_back_when_gemini_import_is_missing(self):

@@ -27,7 +27,7 @@ describe('RouteDetailsPage', () => {
       end_time: '17:00',
       is_verified: 1,
       stops: [
-        { id: 4, stop_name: 'Central Library', arrival_time: '09:10', departure_time: '09:12' },
+        { id: 4, stop_name: 'Jawaharlal Nehru Central Library', arrival_time: '09:10', departure_time: '09:12' },
         { id: 5, stop_name: 'Science Block', arrival_time: '09:20', departure_time: '09:22' },
       ],
     })
@@ -38,7 +38,7 @@ describe('RouteDetailsPage', () => {
 
     expect(await screen.findByRole('heading', { name: 'Academic Shuttle' })).toBeInTheDocument()
     expect(screen.getByRole('table')).toBeInTheDocument()
-    const stopRow = screen.getByRole('row', { name: /Central Library/ })
+    const stopRow = screen.getByRole('row', { name: /Jawaharlal Nehru Central Library/ })
     expect(within(stopRow).getByText('09:10')).toBeInTheDocument()
     expect(within(stopRow).getByText('09:12')).toBeInTheDocument()
     expect(getRouteDetails).toHaveBeenCalledWith('12')

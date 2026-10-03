@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import L from 'leaflet'
 import { useSearchParams } from 'react-router-dom'
-import { CircleMarker, MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet'
+import { CircleMarker, MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import markerIcon from 'leaflet/dist/images/marker-icon.png'
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png'
@@ -44,6 +44,8 @@ const PLACE_MARKER_CLASSES = {
   SECURITY: 'bg-dark',
   OTHER: 'bg-secondary',
 }
+
+const DEMO_ROUTE_NAME = 'Campus Circle Route (DEMO)'
 
 function busIcon(status) {
   const color = BUS_MARKER_CLASSES[status] || 'bg-secondary'
@@ -167,6 +169,9 @@ function LiveMapPage() {
   const mappedBuses = buses.filter(hasCoordinates)
   const mappedPlaces = places.filter(hasCoordinates)
   const mappedStops = stops.filter(hasCoordinates)
+  const routePositions = mappedStops
+    .filter((stop) => stop.route_name === DEMO_ROUTE_NAME)
+    .map((stop) => [Number(stop.latitude), Number(stop.longitude)])
   const selectedPlaceId = searchParams.get('place')
   const selectedPlace = mappedPlaces.find((place) => String(place.id) === selectedPlaceId)
 
@@ -227,6 +232,12 @@ function LiveMapPage() {
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
               <MapController place={selectedPlace} />
+              {routePositions.length > 1 && (
+                <Polyline
+                  positions={routePositions}
+                  pathOptions={{ color: '#d9480f', weight: 6, opacity: 0.9 }}
+                />
+              )}
               {mappedBuses.map((bus) => (
                 <Marker
                   key={bus.id}

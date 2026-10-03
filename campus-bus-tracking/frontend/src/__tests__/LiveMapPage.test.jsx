@@ -24,23 +24,39 @@ import { mockMap } from './helpers.js'
 import LiveMapPage from '../pages/LiveMapPage.jsx'
 
 const delayedBus = {
-  id: 4,
-  bus_number: 'BUS-4',
-  route_name: 'Library Loop',
+  id: 101,
+  bus_number: 'BUS-101',
+  route_name: 'Campus Circle Route (DEMO)',
   status: 'DELAYED',
-  latitude: 23.84,
-  longitude: 78.75,
+  latitude: 23.8276,
+  longitude: 78.7708,
   is_verified: 0,
 }
 
 const library = {
   id: 11,
-  name: 'Central Library',
+  name: 'Jawaharlal Nehru Central Library',
   category: 'LIBRARY',
-  latitude: 23.85,
-  longitude: 78.76,
+  latitude: 23.8276,
+  longitude: 78.7708,
   is_verified: 0,
 }
+
+const campusLoopStops = [
+  ['Jawaharlal Nehru Central Library', 23.8276, 78.7708],
+  ['Rani Laxmi Bai Girls Hostel', 23.8306, 78.7817],
+  ['Jawaharlal Nehru Central Library', 23.8276, 78.7708],
+  ['Vivekanand Boys Hostel', 23.8239, 78.7700],
+  ['Jawaharlal Nehru Central Library', 23.8276, 78.7708],
+  ['Valley Campus', 23.8241, 78.7816],
+  ['Department of Computer Science and Applications', 23.8241, 78.7820],
+  ['Jawaharlal Nehru Central Library', 23.8276, 78.7708],
+].map(([stop_name, latitude, longitude], index) => ({
+  id: index + 1,
+  stop_name,
+  latitude,
+  longitude,
+}))
 
 function renderMap(entry = '/live-map') {
   return render(
@@ -62,21 +78,35 @@ describe('LiveMapPage', () => {
   beforeEach(() => {
     getBuses.mockResolvedValue([delayedBus])
     getPlaces.mockResolvedValue([library])
-    getRoutes.mockResolvedValue([])
-    getRouteDetails.mockResolvedValue({ stops: [] })
+    getRoutes.mockResolvedValue([{ id: 1, route_name: 'Campus Circle Route (DEMO)' }])
+    getRouteDetails.mockResolvedValue({
+      route_name: 'Campus Circle Route (DEMO)',
+      stops: campusLoopStops,
+    })
   })
 
   it('renders the map and gives delayed buses danger-colored divIcons', async () => {
     renderMap()
 
     expect(await screen.findByTestId('map')).toBeInTheDocument()
+    expect(screen.getByTestId('map')).toHaveAttribute('data-center', '[23.8261,78.7772]')
+    expect(screen.getByTestId('map')).toHaveAttribute('data-zoom', '15')
     const busMarker = screen.getAllByTestId('marker')
-      .find((marker) => marker.getAttribute('data-position') === '[23.84,78.75]')
+      .find((marker) => marker.getAttribute('data-position') === '[23.8276,78.7708]')
     expect(busMarker).toBeInTheDocument()
     expect(busMarker).toHaveAttribute('data-icon-html', expect.stringContaining('bg-danger'))
     expect(L.divIcon).toHaveBeenCalledWith(expect.objectContaining({
       html: expect.stringContaining('bg-danger'),
     }))
+    const routeLine = await screen.findByTestId('polyline')
+    expect(routeLine).toHaveAttribute(
+      'data-positions',
+      JSON.stringify(campusLoopStops.map((stop) => [stop.latitude, stop.longitude])),
+    )
+    expect(routeLine).toHaveAttribute(
+      'data-path-options',
+      JSON.stringify({ color: '#d9480f', weight: 6, opacity: 0.9 }),
+    )
   })
 
   it('polls buses every ten seconds and does not poll after unmount', async () => {
@@ -99,9 +129,9 @@ describe('LiveMapPage', () => {
 
   it('loads places and stops once, independent of the bus refresh timer', async () => {
     vi.useFakeTimers()
-    getRoutes.mockResolvedValue([{ id: 1, route_name: 'Library Loop' }])
+    getRoutes.mockResolvedValue([{ id: 1, route_name: 'Campus Circle Route (DEMO)' }])
     getRouteDetails.mockResolvedValue({
-      route_name: 'Library Loop',
+      route_name: 'Campus Circle Route (DEMO)',
       stops: [{ id: 2, stop_name: 'Gate', latitude: 23.8, longitude: 78.7 }],
     })
     renderMap()
@@ -128,7 +158,7 @@ describe('LiveMapPage', () => {
 
     await waitFor(() => {
       expect(mockMap.flyTo).toHaveBeenCalledWith(
-        [23.85, 78.76],
+        [23.8276, 78.7708],
         17,
         { duration: 0.8 },
       )

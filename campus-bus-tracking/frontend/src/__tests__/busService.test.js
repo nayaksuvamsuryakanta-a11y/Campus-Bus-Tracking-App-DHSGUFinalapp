@@ -30,12 +30,12 @@ describe('busService', () => {
   })
 
   it('posts location and status updates with their request bodies', async () => {
-    await updateBusLocation(8, 23.84, 78.75)
+    await updateBusLocation(8, 23.8276, 78.7708)
     await updateBusStatus(8, 'DELAYED')
 
     expect(api.post).toHaveBeenNthCalledWith(1, '/api/buses/8/location', {
-      latitude: 23.84,
-      longitude: 78.75,
+      latitude: 23.8276,
+      longitude: 78.7708,
     })
     expect(api.post).toHaveBeenNthCalledWith(2, '/api/buses/8/status', {
       status: 'DELAYED',

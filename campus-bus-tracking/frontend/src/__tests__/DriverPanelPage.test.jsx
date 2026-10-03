@@ -16,12 +16,12 @@ import { getBuses, updateBusLocation, updateBusStatus } from '../services/busSer
 import DriverPanelPage from '../pages/DriverPanelPage.jsx'
 
 const buses = [{
-  id: 5,
-  bus_number: 'BUS-5',
-  route_name: 'Campus Loop',
+  id: 101,
+  bus_number: 'BUS-101',
+  route_name: 'Campus Circle Route (DEMO)',
   status: 'ON_TIME',
-  latitude: 23.84,
-  longitude: 78.75,
+  latitude: 23.8276,
+  longitude: 78.7708,
   is_verified: 0,
 }]
 
@@ -34,8 +34,8 @@ describe('DriverPanelPage', () => {
     getBuses.mockResolvedValue(buses)
     updateBusLocation.mockResolvedValue({
       message: 'Location updated successfully',
-      latitude: 24.1,
-      longitude: 79.2,
+      latitude: 23.8276,
+      longitude: 78.7708,
       updated_at: '2026-10-01 12:00:00',
     })
     updateBusStatus.mockResolvedValue({
@@ -67,16 +67,16 @@ describe('DriverPanelPage', () => {
     await screen.findByRole('heading', { name: 'Driver panel' })
 
     await user.clear(screen.getByLabelText('Latitude'))
-    await user.type(screen.getByLabelText('Latitude'), '24.1')
+    await user.type(screen.getByLabelText('Latitude'), '23.8276')
     await user.clear(screen.getByLabelText('Longitude'))
-    await user.type(screen.getByLabelText('Longitude'), '79.2')
+    await user.type(screen.getByLabelText('Longitude'), '78.7708')
     await user.click(screen.getByRole('button', { name: 'Update Location' }))
-    expect(updateBusLocation).toHaveBeenCalledWith(5, 24.1, 79.2)
+    expect(updateBusLocation).toHaveBeenCalledWith(101, 23.8276, 78.7708)
     expect(await screen.findByText('Location updated successfully')).toBeInTheDocument()
 
     await user.selectOptions(screen.getByLabelText('Bus status'), 'DELAYED')
     await user.click(screen.getByRole('button', { name: 'Update Status' }))
-    expect(updateBusStatus).toHaveBeenCalledWith(5, 'DELAYED')
+    expect(updateBusStatus).toHaveBeenCalledWith(101, 'DELAYED')
     expect(await screen.findByText('Bus status updated successfully')).toBeInTheDocument()
 
     await user.type(screen.getByLabelText('Title'), 'Library shuttle delay')
@@ -108,8 +108,8 @@ describe('DriverPanelPage', () => {
 
     resolveUpdate({
       message: 'Location updated successfully',
-      latitude: 23.84,
-      longitude: 78.75,
+      latitude: 23.8276,
+      longitude: 78.7708,
       updated_at: '2026-10-01 12:00:00',
     })
     expect(await screen.findByText('Location updated successfully')).toBeInTheDocument()
