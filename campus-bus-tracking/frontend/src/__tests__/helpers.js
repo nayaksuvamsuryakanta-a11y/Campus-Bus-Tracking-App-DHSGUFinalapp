@@ -31,6 +31,7 @@ export function createReactLeafletMock() {
     TileLayer: mockContainer('tile-layer', (props) => ({
       'data-url': props.url,
       'data-attribution': props.attribution,
+      'data-max-zoom': props.maxZoom,
     })),
     Marker: mockContainer('marker', (props) => ({
       'data-position': JSON.stringify(props.position),

@@ -230,8 +230,9 @@ function LiveMapPage() {
           style={{ height: '100%', width: '100%' }}
         >
           <TileLayer
-            attribution="&copy; OpenStreetMap contributors &copy; CARTO"
-            url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+            attribution="Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, swisstopo, and the GIS User Community"
+            url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
+            maxZoom={19}
           />
           <MapController place={selectedPlace} />
           {routePositions.length > 1 && (
