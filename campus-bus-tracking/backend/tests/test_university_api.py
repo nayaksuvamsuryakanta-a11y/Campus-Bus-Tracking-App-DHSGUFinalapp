@@ -65,6 +65,13 @@ class UniversityPlaceApiTests(unittest.TestCase):
             else:
                 os.environ[key] = value
 
+    def test_app_startup_seeds_demo_data(self):
+        with patch.object(seed, "seed_database") as startup_seed:
+            import app as backend_app
+
+        startup_seed.assert_called_once_with()
+        self.assertIn("api", backend_app.app.blueprints)
+
     @staticmethod
     def _new_database_uri():
         return f"file:campus_bus_test_{uuid.uuid4().hex}?mode=memory&cache=shared"
@@ -228,6 +235,11 @@ class UniversityPlaceApiTests(unittest.TestCase):
                 json={"latitude": 23.8276, "longitude": -181},
                 headers=headers,
             )
+            oversized_coordinate = self.client.post(
+                f"/api/buses/{bus_cursor.lastrowid}/location",
+                json={"latitude": 10**400, "longitude": 78.7708},
+                headers=headers,
+            )
             invalid_status = self.client.post(
                 f"/api/buses/{bus_cursor.lastrowid}/status",
                 json={"status": "LATE"},
@@ -248,10 +260,11 @@ class UniversityPlaceApiTests(unittest.TestCase):
             [
                 invalid_latitude.status_code,
                 invalid_longitude.status_code,
+                oversized_coordinate.status_code,
                 invalid_status.status_code,
                 invalid_alert_type.status_code,
             ],
-            [400, 400, 400, 400],
+            [400, 400, 400, 400, 400],
         )
 
     def test_driver_pin_is_required_when_configured(self):
@@ -349,6 +362,23 @@ class UniversityPlaceApiTests(unittest.TestCase):
             )
 
         self.assertEqual(response.status_code, 200)
+
+    def test_whitespace_driver_pin_does_not_disable_pin_check(self):
+        connection = database.get_db_connection()
+        cursor = connection.execute(
+            "INSERT INTO buses (bus_number) VALUES (?)", ("WHITESPACE-PIN-TEST-BUS",)
+        )
+        connection.commit()
+        bus_id = cursor.lastrowid
+        connection.close()
+
+        with patch.dict(os.environ, {"DRIVER_PIN": "   "}):
+            response = self.client.post(
+                f"/api/buses/{bus_id}/location",
+                json={"latitude": 23.8276, "longitude": 78.7708},
+            )
+
+        self.assertEqual(response.status_code, 401)
 
     def test_location_timestamp_is_utc_sqlite_format(self):
         connection = database.get_db_connection()
@@ -574,6 +604,9 @@ class UniversityPlaceApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json(), {"reply": "Context-grounded answer"})
+        model.generate_content.assert_called_once_with(
+            "Where is the auditorium?", request_options={"timeout": 30}
+        )
         system_instruction = generative_ai.GenerativeModel.call_args.kwargs[
             "system_instruction"
         ]
@@ -614,7 +647,9 @@ class UniversityPlaceApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("offline demo mode", response.get_json()["reply"])
-        model.generate_content.assert_called_once_with("Hello")
+        model.generate_content.assert_called_once_with(
+            "Hello", request_options={"timeout": 30}
+        )
 
 
 if __name__ == "__main__":

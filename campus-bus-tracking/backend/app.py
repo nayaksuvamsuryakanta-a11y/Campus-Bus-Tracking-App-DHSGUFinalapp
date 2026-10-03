@@ -3,12 +3,12 @@ import os
 from flask import Flask, jsonify
 from flask_cors import CORS
 
-from database import init_db
 from routes import api
+from seed import seed_database
 
 
 app = Flask(__name__)
-init_db()
+seed_database()
 
 allowed_origins = [
     "http://localhost:5173",

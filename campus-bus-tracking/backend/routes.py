@@ -42,7 +42,7 @@ def _driver_pin_error():
     configured_pin = os.getenv("DRIVER_PIN")
     # Use the demo default only when unset; an explicit blank disables the check.
     expected_pin = "dhsgu2026" if configured_pin is None else configured_pin
-    if expected_pin.strip() and not hmac.compare_digest(
+    if expected_pin != "" and not hmac.compare_digest(
         request.headers.get("X-Driver-Pin", ""), expected_pin
     ):
         return _error("A valid X-Driver-Pin header is required", 401)
@@ -153,7 +153,7 @@ def chat():
             model_name="gemini-1.5-flash",
             system_instruction=system_instruction,
         )
-        response = model.generate_content(message)
+        response = model.generate_content(message, request_options={"timeout": 30})
         reply = getattr(response, "text", "")
         if not isinstance(reply, str) or not reply.strip():
             raise ValueError("Gemini returned an empty response")
@@ -297,14 +297,14 @@ def update_bus_location(bus_id):
     valid_latitude = (
         isinstance(latitude, (int, float))
         and not isinstance(latitude, bool)
-        and math.isfinite(latitude)
         and -90 <= latitude <= 90
+        and math.isfinite(latitude)
     )
     valid_longitude = (
         isinstance(longitude, (int, float))
         and not isinstance(longitude, bool)
-        and math.isfinite(longitude)
         and -180 <= longitude <= 180
+        and math.isfinite(longitude)
     )
     if not valid_latitude or not valid_longitude:
         return _error("Valid latitude and longitude are required", 400)

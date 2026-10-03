@@ -6,7 +6,7 @@ A mobile-responsive campus guide and bus-tracking demonstration for Dr. Harising
 
 For the CodeCraft Mobile App Development Challenge, this project addresses the difficulty of knowing where campus buses are, when they will reach stops, and whether service has changed. Its objectives are to make route and schedule information easy to find, provide live or demonstration GPS updates, and communicate delays and route changes promptly.
 
-Only the university facts and place names listed in this README are sourced from verified DHSGU information. Bus routes, stop names/times, driver labels, bus locations, and campus-place coordinates are unverified demonstration data marked with `Demo data - not official`. They are not official DHSGU routes or vehicle tracking. The map center is illustrative and must be replaced with coordinates checked on OpenStreetMap. The driver panel can use browser GPS where available or manual coordinates.
+Only the university facts and place names listed in this README are sourced from verified DHSGU information. Bus routes, stop names/times, driver labels, and bus locations are demonstration data marked with `Demo data - not official`; they are not official DHSGU routes or vehicle tracking. The five seeded campus landmarks use the provided campus coordinates, and the map center frames those locations. The driver panel can use browser GPS where available or manual coordinates.
 
 ## Features
 
@@ -71,7 +71,7 @@ python seed.py
 python app.py
 ```
 
-The API runs at `http://127.0.0.1:5000`. Keep this terminal open. In a second PowerShell terminal, from the project root:
+The API runs at `http://127.0.0.1:5000`. The database schema and demo data are initialized automatically when the backend starts. Keep this terminal open. In a second PowerShell terminal, from the project root:
 
 ```powershell
 cd frontend
@@ -80,11 +80,11 @@ Copy-Item .env.example .env.local
 npm run dev
 ```
 
-Open the Vite URL printed in the terminal, usually `http://localhost:5173`. `VITE_API_BASE_URL` is the API origin only, with no `/api` suffix; the local fallback is `http://127.0.0.1:5000`. The SQLite database and tables are created automatically when the backend starts. `python seed.py` is idempotent; `python seed.py --reset` clears and recreates rows marked unverified/demo while preserving verified rows and university facts.
+Open the Vite URL printed in the terminal, usually `http://localhost:5173`. `VITE_API_BASE_URL` is the API origin only, with no `/api` suffix; the local fallback is `http://127.0.0.1:5000`. `python seed.py` can also be run manually and is idempotent; `python seed.py --reset` clears and recreates rows marked unverified/demo while preserving verified rows and university facts.
 
 If PowerShell blocks virtual-environment activation, use `venv\Scripts\python.exe -m pip install -r requirements.txt`, `venv\Scripts\python.exe seed.py`, and `venv\Scripts\python.exe app.py` instead.
 
-The Driver Panel prompts for a PIN. Leave it blank for local development if the backend has no `DRIVER_PIN`. If the backend has a PIN configured, enter the same value; it is kept in `sessionStorage` for that browser tab and sent as `X-Driver-Pin`. This is a demonstration safeguard only, not real authentication.
+The Driver Panel prompts for a PIN. If `DRIVER_PIN` is set, enter that value; if it is unset, the backend uses the built-in demo PIN `dhsgu2026`. An explicitly empty `DRIVER_PIN` disables the optional check. The PIN is kept in `sessionStorage` for that browser tab and sent as `X-Driver-Pin`. This is a demonstration safeguard only, not real authentication.
 
 ### Gemini Assistant (Optional)
 
@@ -150,7 +150,6 @@ Add individual/team member name(s) and submission details here.
 
 ## Data You Must Confirm
 
-- The map center and all campus stop/place coordinates; see the TODO in `frontend/src/config/university.js`.
 - Official routes, stop names, schedules, and driver/bus assignments with DHSGU transport staff.
 - Current contact details. No phone numbers or email addresses are fabricated; confirm with the Security Department or Registrar's office.
 - A deployment-only `DRIVER_PIN`, if the demo safeguard is enabled. Do not commit secrets.
@@ -165,7 +164,7 @@ Create a Python web service with `backend` as its root directory. Use `pip insta
 gunicorn app:app --bind 0.0.0.0:$PORT
 ```
 
-The equivalent basic Gunicorn command is `gunicorn app:app`; use the explicit `$PORT` binding when required by the host. Set `FRONTEND_ORIGIN` to the deployed Vercel origin so Flask-CORS accepts browser requests. Set `GEMINI_API_KEY` in the backend service's environment settings to enable AI replies; do not place it in frontend settings. Optionally set `DRIVER_PIN` in the provider's environment settings; this PIN header check is only a demo safeguard. The database is initialized when the app starts. Run `python seed.py` manually from the provider's shell for demonstration data; `python seed.py --reset` only clears unverified/demo rows. SQLite files on many hosted services are ephemeral unless a persistent disk is configured, so attach durable storage or choose a managed database if data must survive redeployments.
+The equivalent basic Gunicorn command is `gunicorn app:app`; use the explicit `$PORT` binding when required by the host. Set `FRONTEND_ORIGIN` to the deployed Vercel origin so Flask-CORS accepts browser requests. Set `GEMINI_API_KEY` in the backend service's environment settings to enable AI replies; do not place it in frontend settings. Set a private `DRIVER_PIN` in the provider's environment settings; the built-in PIN is public demo-only protection. The app initializes the schema and reseeds demo data at startup. SQLite files on many hosted services are ephemeral, so runtime updates are lost across restarts; use durable storage or a managed database if data must persist.
 
 ### Frontend on Vercel
 

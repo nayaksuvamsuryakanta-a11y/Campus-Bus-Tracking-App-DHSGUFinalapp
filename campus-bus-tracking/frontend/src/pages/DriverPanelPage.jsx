@@ -205,7 +205,7 @@ function DriverPanelPage() {
                 onChange={(event) => setDriverPin(event.target.value)}
               />
               <p className="small text-body-secondary">
-                Leave blank when local PIN protection is not configured. This demo PIN is not real authentication.
+                Enter the configured backend PIN. If DRIVER_PIN is unset, use the demo PIN dhsgu2026. This is not real authentication.
               </p>
               <button className="btn btn-primary" type="submit">Continue</button>
             </form>
