@@ -471,7 +471,7 @@ class UniversityPlaceApiTests(unittest.TestCase):
                 for table in ("routes", "stops", "buses", "alerts", "campus_places")
             }
             self.assertEqual(after_reset["routes"], 2)
-            self.assertEqual(after_reset["stops"], 8)
+            self.assertEqual(after_reset["stops"], 6)
             self.assertEqual(after_reset["buses"], 1)
             self.assertEqual(after_reset["alerts"], 2)
             self.assertEqual(after_reset["campus_places"], 6)
@@ -488,11 +488,9 @@ class UniversityPlaceApiTests(unittest.TestCase):
             expected_stops = [
                 ("Jawaharlal Nehru Central Library", 23.8276, 78.7708),
                 ("Rani Laxmi Bai Girls Hostel", 23.8306, 78.7817),
-                ("Jawaharlal Nehru Central Library", 23.8276, 78.7708),
-                ("Vivekanand Boys Hostel", 23.8239, 78.7700),
-                ("Jawaharlal Nehru Central Library", 23.8276, 78.7708),
                 ("Valley Campus", 23.8241, 78.7816),
                 ("Department of Computer Science and Applications", 23.8241, 78.7820),
+                ("Vivekanand Boys Hostel", 23.8239, 78.7700),
                 ("Jawaharlal Nehru Central Library", 23.8276, 78.7708),
             ]
             stops = connection.execute(

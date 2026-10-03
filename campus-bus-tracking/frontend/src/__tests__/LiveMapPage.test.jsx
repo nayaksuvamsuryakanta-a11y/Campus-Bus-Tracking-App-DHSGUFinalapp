@@ -45,11 +45,9 @@ const library = {
 const campusLoopStops = [
   ['Jawaharlal Nehru Central Library', 23.8276, 78.7708],
   ['Rani Laxmi Bai Girls Hostel', 23.8306, 78.7817],
-  ['Jawaharlal Nehru Central Library', 23.8276, 78.7708],
-  ['Vivekanand Boys Hostel', 23.8239, 78.7700],
-  ['Jawaharlal Nehru Central Library', 23.8276, 78.7708],
   ['Valley Campus', 23.8241, 78.7816],
   ['Department of Computer Science and Applications', 23.8241, 78.7820],
+  ['Vivekanand Boys Hostel', 23.8239, 78.7700],
   ['Jawaharlal Nehru Central Library', 23.8276, 78.7708],
 ].map(([stop_name, latitude, longitude], index) => ({
   id: index + 1,
