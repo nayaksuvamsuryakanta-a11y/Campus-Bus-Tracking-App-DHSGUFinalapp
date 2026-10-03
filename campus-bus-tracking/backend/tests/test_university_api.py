@@ -471,10 +471,10 @@ class UniversityPlaceApiTests(unittest.TestCase):
                 for table in ("routes", "stops", "buses", "alerts", "campus_places")
             }
             self.assertEqual(after_reset["routes"], 2)
-            self.assertEqual(after_reset["stops"], 6)
+            self.assertEqual(after_reset["stops"], 7)
             self.assertEqual(after_reset["buses"], 1)
             self.assertEqual(after_reset["alerts"], 2)
-            self.assertEqual(after_reset["campus_places"], 6)
+            self.assertEqual(after_reset["campus_places"], 9)
             self.assertEqual(
                 connection.execute(
                     "SELECT is_verified FROM routes WHERE id = ?", (verified_route_id,)
@@ -486,11 +486,12 @@ class UniversityPlaceApiTests(unittest.TestCase):
             ).fetchone()
             self.assertEqual(demo_route["route_name"], "Campus Circle Route (DEMO)")
             expected_stops = [
-                ("Jawaharlal Nehru Central Library", 23.8276, 78.7708),
+                ("Vivekanand Boys Hostel", 23.8204050, 78.7700109),
                 ("Rani Laxmi Bai Girls Hostel", 23.8306, 78.7817),
-                ("Valley Campus", 23.8241, 78.7816),
+                ("Institute Of Engineering And Technology", 23.8245, 78.7816),
                 ("Department of Computer Science and Applications", 23.8241, 78.7820),
-                ("Vivekanand Boys Hostel", 23.8239, 78.7700),
+                ("Department of Criminology and Forensic", 23.8227, 78.7829),
+                ("Nivedita Girls Hostel", 23.8298, 78.7804),
                 ("Jawaharlal Nehru Central Library", 23.8276, 78.7708),
             ]
             stops = connection.execute(
@@ -512,7 +513,7 @@ class UniversityPlaceApiTests(unittest.TestCase):
                     buses[0][key]
                     for key in ("bus_number", "status", "latitude", "longitude", "route_id")
                 ),
-                ("BUS-101", "ON_TIME", 23.8276, 78.7708, demo_route["id"]),
+                ("BUS-101", "ON_TIME", 23.8204050, 78.7700109, demo_route["id"]),
             )
             places = connection.execute(
                 """SELECT name, latitude, longitude FROM campus_places
@@ -523,9 +524,12 @@ class UniversityPlaceApiTests(unittest.TestCase):
                 {
                     ("Jawaharlal Nehru Central Library", 23.8276, 78.7708),
                     ("Rani Laxmi Bai Girls Hostel", 23.8306, 78.7817),
-                    ("Vivekanand Boys Hostel", 23.8239, 78.7700),
+                    ("Vivekanand Boys Hostel", 23.8204050, 78.7700109),
                     ("Valley Campus", 23.8241, 78.7816),
                     ("Department of Computer Science and Applications", 23.8241, 78.7820),
+                    ("Institute Of Engineering And Technology", 23.8245, 78.7816),
+                    ("Department of Criminology and Forensic", 23.8227, 78.7829),
+                    ("Nivedita Girls Hostel", 23.8298, 78.7804),
                 },
             )
             demo_alerts = connection.execute(

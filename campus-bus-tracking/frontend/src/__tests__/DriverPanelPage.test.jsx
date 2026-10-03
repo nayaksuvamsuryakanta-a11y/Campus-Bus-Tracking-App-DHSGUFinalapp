@@ -20,8 +20,8 @@ const buses = [{
   bus_number: 'BUS-101',
   route_name: 'Campus Circle Route (DEMO)',
   status: 'ON_TIME',
-  latitude: 23.8276,
-  longitude: 78.7708,
+  latitude: 23.8204050,
+  longitude: 78.7700109,
   is_verified: 0,
 }]
 

@@ -10,9 +10,12 @@ import PlacesPage from '../pages/PlacesPage.jsx'
 const places = [
   { id: 3, name: 'Jawaharlal Nehru Central Library', category: 'LIBRARY', latitude: 23.8276, longitude: 78.7708, description: 'Library building', is_verified: 0 },
   { id: 4, name: 'Rani Laxmi Bai Girls Hostel', category: 'HOSTEL', latitude: 23.8306, longitude: 78.7817, description: 'Girls hostel', is_verified: 0 },
-  { id: 5, name: 'Vivekanand Boys Hostel', category: 'HOSTEL', latitude: 23.8239, longitude: 78.7700, description: 'Boys hostel', is_verified: 0 },
+  { id: 5, name: 'Vivekanand Boys Hostel', category: 'HOSTEL', latitude: 23.8204050, longitude: 78.7700109, description: 'Boys hostel', is_verified: 0 },
   { id: 6, name: 'Valley Campus', category: 'OTHER', latitude: 23.8241, longitude: 78.7816, description: 'Valley Campus', is_verified: 0 },
   { id: 7, name: 'Department of Computer Science and Applications', category: 'ACADEMIC', latitude: 23.8241, longitude: 78.7820, description: 'Academic department', is_verified: 0 },
+  { id: 8, name: 'Institute Of Engineering And Technology', category: 'ACADEMIC', latitude: 23.8245, longitude: 78.7816, description: 'Engineering and technology institute', is_verified: 0 },
+  { id: 9, name: 'Department of Criminology and Forensic', category: 'ACADEMIC', latitude: 23.8227, longitude: 78.7829, description: 'Criminology and forensic department', is_verified: 0 },
+  { id: 10, name: 'Nivedita Girls Hostel', category: 'HOSTEL', latitude: 23.8298, longitude: 78.7804, description: 'Girls hostel', is_verified: 0 },
 ]
 
 describe('PlacesPage', () => {
@@ -26,8 +29,8 @@ describe('PlacesPage', () => {
     render(<MemoryRouter><PlacesPage /></MemoryRouter>)
 
     await screen.findByText('Jawaharlal Nehru Central Library')
-    expect(screen.getAllByText('Demo data - not official')).toHaveLength(5)
-    expect(screen.getAllByRole('link', { name: 'Show on map' })).toHaveLength(5)
+    expect(screen.getAllByText('Demo data - not official')).toHaveLength(8)
+    expect(screen.getAllByRole('link', { name: 'Show on map' })).toHaveLength(8)
 
     fireEvent.click(screen.getByRole('button', { name: 'LIBRARY' }))
 

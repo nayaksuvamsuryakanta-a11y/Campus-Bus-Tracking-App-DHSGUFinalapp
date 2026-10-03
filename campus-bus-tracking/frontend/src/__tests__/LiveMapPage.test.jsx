@@ -28,8 +28,8 @@ const delayedBus = {
   bus_number: 'BUS-101',
   route_name: 'Campus Circle Route (DEMO)',
   status: 'DELAYED',
-  latitude: 23.8276,
-  longitude: 78.7708,
+  latitude: 23.8204050,
+  longitude: 78.7700109,
   is_verified: 0,
 }
 
@@ -43,11 +43,12 @@ const library = {
 }
 
 const campusLoopStops = [
-  ['Jawaharlal Nehru Central Library', 23.8276, 78.7708],
+  ['Vivekanand Boys Hostel', 23.8204050, 78.7700109],
   ['Rani Laxmi Bai Girls Hostel', 23.8306, 78.7817],
-  ['Valley Campus', 23.8241, 78.7816],
+  ['Institute Of Engineering And Technology', 23.8245, 78.7816],
   ['Department of Computer Science and Applications', 23.8241, 78.7820],
-  ['Vivekanand Boys Hostel', 23.8239, 78.7700],
+  ['Department of Criminology and Forensic', 23.8227, 78.7829],
+  ['Nivedita Girls Hostel', 23.8298, 78.7804],
   ['Jawaharlal Nehru Central Library', 23.8276, 78.7708],
 ].map(([stop_name, latitude, longitude], index) => ({
   id: index + 1,
@@ -87,10 +88,10 @@ describe('LiveMapPage', () => {
     renderMap()
 
     expect(await screen.findByTestId('map')).toBeInTheDocument()
-    expect(screen.getByTestId('map')).toHaveAttribute('data-center', '[23.8261,78.7772]')
+    expect(screen.getByTestId('map')).toHaveAttribute('data-center', '[23.8257,78.7785]')
     expect(screen.getByTestId('map')).toHaveAttribute('data-zoom', '15')
     const busMarker = screen.getAllByTestId('marker')
-      .find((marker) => marker.getAttribute('data-position') === '[23.8276,78.7708]')
+      .find((marker) => marker.getAttribute('data-position') === '[23.820405,78.7700109]')
     expect(busMarker).toBeInTheDocument()
     expect(busMarker).toHaveAttribute('data-icon-html', expect.stringContaining('bg-danger'))
     expect(L.divIcon).toHaveBeenCalledWith(expect.objectContaining({

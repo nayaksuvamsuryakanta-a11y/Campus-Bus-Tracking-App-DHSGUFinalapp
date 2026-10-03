@@ -15,6 +15,6 @@ export const UNIVERSITY = {
     railwayStation: 'About 4-5 km; sources differ.',
     airport: 'About 13 km to Dhana Airport.',
   },
-  MAP_CENTER: [23.8261, 78.7772],
+  MAP_CENTER: [23.8257, 78.7785],
   MAP_ZOOM: 15,
 }

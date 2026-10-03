@@ -39,12 +39,13 @@ ROUTES = [
         "start_time": "08:00",
         "end_time": "18:00",
         "stops": [
-            ("Jawaharlal Nehru Central Library", "08:05", "08:06", 23.8276, 78.7708),
-            ("Rani Laxmi Bai Girls Hostel", "08:12", "08:13", 23.8306, 78.7817),
-            ("Valley Campus", "08:20", "08:21", 23.8241, 78.7816),
-            ("Department of Computer Science and Applications", "08:23", "08:24", 23.8241, 78.7820),
-            ("Vivekanand Boys Hostel", "08:35", "08:36", 23.8239, 78.7700),
-            ("Jawaharlal Nehru Central Library", "08:43", "08:44", 23.8276, 78.7708),
+            ("Vivekanand Boys Hostel", "08:05", "08:06", 23.8204050, 78.7700109),
+            ("Rani Laxmi Bai Girls Hostel", "08:18", "08:19", 23.8306, 78.7817),
+            ("Institute Of Engineering And Technology", "08:32", "08:33", 23.8245, 78.7816),
+            ("Department of Computer Science and Applications", "08:36", "08:37", 23.8241, 78.7820),
+            ("Department of Criminology and Forensic", "08:48", "08:49", 23.8227, 78.7829),
+            ("Nivedita Girls Hostel", "09:00", "09:01", 23.8298, 78.7804),
+            ("Jawaharlal Nehru Central Library", "09:15", "09:16", 23.8276, 78.7708),
         ],
         "bus_number": "BUS-101",
         "driver_name": "Demo driver BUS-101 (not official)",
@@ -55,9 +56,12 @@ ROUTES = [
 PLACES = [
     ("Jawaharlal Nehru Central Library", "LIBRARY", "DEMO campus place; not official transit data.", 23.8276, 78.7708),
     ("Rani Laxmi Bai Girls Hostel", "HOSTEL", "DEMO campus place; not official transit data.", 23.8306, 78.7817),
-    ("Vivekanand Boys Hostel", "HOSTEL", "DEMO campus place; not official transit data.", 23.8239, 78.7700),
+    ("Vivekanand Boys Hostel", "HOSTEL", "DEMO campus place; not official transit data.", 23.8204050, 78.7700109),
     ("Valley Campus", "OTHER", "DEMO campus place; not official transit data.", 23.8241, 78.7816),
     ("Department of Computer Science and Applications", "ACADEMIC", "DEMO campus place; not official transit data.", 23.8241, 78.7820),
+    ("Institute Of Engineering And Technology", "ACADEMIC", "DEMO campus place; not official transit data.", 23.8245, 78.7816),
+    ("Department of Criminology and Forensic", "ACADEMIC", "DEMO campus place; not official transit data.", 23.8227, 78.7829),
+    ("Nivedita Girls Hostel", "HOSTEL", "DEMO campus place; not official transit data.", 23.8298, 78.7804),
 ]
 
 DEMO_ALERTS = [
