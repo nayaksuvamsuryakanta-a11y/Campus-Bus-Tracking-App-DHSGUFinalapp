@@ -28,7 +28,10 @@ export function createReactLeafletMock() {
       'data-center': JSON.stringify(props.center),
       'data-zoom': props.zoom,
     })),
-    TileLayer: () => null,
+    TileLayer: mockContainer('tile-layer', (props) => ({
+      'data-url': props.url,
+      'data-attribution': props.attribution,
+    })),
     Marker: mockContainer('marker', (props) => ({
       'data-position': JSON.stringify(props.position),
       'data-icon-html': props.icon?.html || '',
@@ -36,6 +39,8 @@ export function createReactLeafletMock() {
     Popup: ({ children }) => createElement('div', { 'data-testid': 'popup' }, children),
     CircleMarker: mockContainer('circle-marker', (props) => ({
       'data-center': JSON.stringify(props.center),
+      'data-radius': props.radius,
+      'data-path-options': JSON.stringify(props.pathOptions),
     })),
     Polyline: mockContainer('polyline', (props) => ({
       'data-positions': JSON.stringify(props.positions),

@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -90,6 +90,14 @@ describe('LiveMapPage', () => {
     expect(await screen.findByTestId('map')).toBeInTheDocument()
     expect(screen.getByTestId('map')).toHaveAttribute('data-center', '[23.8257,78.7785]')
     expect(screen.getByTestId('map')).toHaveAttribute('data-zoom', '15')
+    expect(screen.getByTestId('tile-layer')).toHaveAttribute(
+      'data-url',
+      'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    )
+    expect(screen.getByTestId('tile-layer')).toHaveAttribute(
+      'data-attribution',
+      '© OpenStreetMap contributors © CARTO',
+    )
     const busMarker = screen.getAllByTestId('marker')
       .find((marker) => marker.getAttribute('data-position') === '[23.820405,78.7700109]')
     expect(busMarker).toBeInTheDocument()
@@ -97,14 +105,55 @@ describe('LiveMapPage', () => {
     expect(L.divIcon).toHaveBeenCalledWith(expect.objectContaining({
       html: expect.stringContaining('bg-danger'),
     }))
-    const routeLine = await screen.findByTestId('polyline')
-    expect(routeLine).toHaveAttribute(
-      'data-positions',
-      JSON.stringify(campusLoopStops.map((stop) => [stop.latitude, stop.longitude])),
+    const routeLines = await screen.findAllByTestId('polyline')
+    expect(routeLines).toHaveLength(2)
+    const routeVertices = JSON.stringify(
+      campusLoopStops.map((stop) => [stop.latitude, stop.longitude]),
     )
-    expect(routeLine).toHaveAttribute(
+    routeLines.forEach((routeLine) => {
+      expect(routeLine).toHaveAttribute('data-positions', routeVertices)
+    })
+    expect(routeLines[0]).toHaveAttribute(
       'data-path-options',
-      JSON.stringify({ color: '#d9480f', weight: 6, opacity: 0.9 }),
+      JSON.stringify({
+        color: '#0b57d0', weight: 9, opacity: 0.9, lineCap: 'round', lineJoin: 'round',
+      }),
+    )
+    expect(routeLines[1]).toHaveAttribute(
+      'data-path-options',
+      JSON.stringify({
+        color: '#1a73e8', weight: 6, opacity: 0.95, lineCap: 'round', lineJoin: 'round',
+      }),
+    )
+    expect(screen.getByRole('heading', { level: 2, name: 'Campus Circle Route (DEMO)' }))
+      .toBeInTheDocument()
+    expect(screen.getByTestId('route-summary').textContent)
+      .toMatch(/^≈ \d+\.\d km • ~\d+ min$/)
+    const itineraryRows = screen.getAllByRole('listitem')
+    expect(itineraryRows).toHaveLength(7)
+    expect(itineraryRows.map((row) => row.querySelector('.live-map-stop-name').textContent))
+      .toEqual(campusLoopStops.map((stop) => stop.stop_name))
+    expect(itineraryRows[0]).toHaveTextContent('23.820405, 78.7700109')
+    expect(within(screen.getByTestId('route-itinerary'))
+      .getByText('Demo data - not official')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText('Stops'))
+    const waypointMarkers = screen.getAllByTestId('circle-marker')
+    expect(waypointMarkers).toHaveLength(7)
+    expect(waypointMarkers[0]).toHaveAttribute('data-radius', '6')
+    expect(waypointMarkers[0]).toHaveAttribute(
+      'data-path-options',
+      JSON.stringify({ color: '#fff', weight: 2, fillColor: '#1a73e8', fillOpacity: 1 }),
+    )
+    expect(waypointMarkers[1]).toHaveAttribute('data-radius', '5')
+    expect(waypointMarkers[1]).toHaveAttribute(
+      'data-path-options',
+      JSON.stringify({ color: '#80868b', weight: 2, fillColor: '#fff', fillOpacity: 1 }),
+    )
+    expect(waypointMarkers[6]).toHaveAttribute('data-radius', '7')
+    expect(waypointMarkers[6]).toHaveAttribute(
+      'data-path-options',
+      JSON.stringify({ color: '#fff', weight: 2, fillColor: '#ea4335', fillOpacity: 1 }),
     )
   })
 
