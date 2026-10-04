@@ -11,12 +11,7 @@ function haversineDistanceKm(start, end) {
   return 6371 * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine))
 }
 
-async function fetchRoadSegment(start, end) {
-  const directDistanceKm = haversineDistanceKm(start, end)
-  const straightCoordinates = [
-    [Number(start.longitude), Number(start.latitude)],
-    [Number(end.longitude), Number(end.latitude)],
-  ]
+async function fetchRoadCandidate(start, end, directDistanceKm, detourFactor, extraKm) {
   let timeoutId
 
   try {
@@ -27,14 +22,17 @@ async function fetchRoadSegment(start, end) {
       { signal: controller.signal },
     )
     if (!response.ok) {
-      return { coordinates: straightCoordinates, distanceKm: directDistanceKm, roadUsed: false }
+      return null
     }
 
     const result = await response.json()
     const route = result?.code === 'Ok' ? result.routes?.[0] : null
     const coordinates = route?.geometry?.coordinates
     const roadDistanceKm = route?.distance / 1000
-    const maxRoadDistanceKm = Math.max(2.2 * directDistanceKm, directDistanceKm + 3)
+    const maxRoadDistanceKm = Math.max(
+      detourFactor * directDistanceKm,
+      directDistanceKm + extraKm,
+    )
     const validCoordinates = Array.isArray(coordinates)
       && coordinates.length >= 2
       && coordinates.every((coordinate) => (
@@ -50,14 +48,31 @@ async function fetchRoadSegment(start, end) {
       || roadDistanceKm < 0
       || roadDistanceKm > maxRoadDistanceKm
     ) {
-      return { coordinates: straightCoordinates, distanceKm: directDistanceKm, roadUsed: false }
+      return null
     }
 
     return { coordinates, distanceKm: roadDistanceKm, roadUsed: true }
   } catch {
-    return { coordinates: straightCoordinates, distanceKm: directDistanceKm, roadUsed: false }
+    return null
   } finally {
     if (timeoutId !== undefined) clearTimeout(timeoutId)
+  }
+}
+
+async function fetchRoadSegment(start, end) {
+  const directDistanceKm = haversineDistanceKm(start, end)
+  const straightCoordinates = [
+    [Number(start.longitude), Number(start.latitude)],
+    [Number(end.longitude), Number(end.latitude)],
+  ]
+  const strictCandidate = await fetchRoadCandidate(start, end, directDistanceKm, 2.2, 3)
+  if (strictCandidate) return strictCandidate
+
+  const relaxedCandidate = await fetchRoadCandidate(start, end, directDistanceKm, 3.5, 5)
+  return relaxedCandidate || {
+    coordinates: straightCoordinates,
+    distanceKm: directDistanceKm,
+    roadUsed: false,
   }
 }
 

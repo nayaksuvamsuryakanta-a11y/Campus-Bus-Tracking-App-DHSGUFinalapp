@@ -104,6 +104,13 @@ function expectedRoadCoordinates(stops, straightSegmentIndex = -1) {
   return coordinates
 }
 
+function expectUniformBlueRouteLines(routeLines) {
+  expect(routeLines).toHaveLength(2)
+  expect(routeLines.map((routeLine) => (
+    JSON.parse(routeLine.getAttribute('data-path-options')).color
+  ))).toEqual(['#0b57d0', '#1a73e8'])
+}
+
 function haversineDistanceKm(start, end) {
   const radians = Math.PI / 180
   const latitude1 = Number(start.latitude) * radians
@@ -180,7 +187,7 @@ describe('LiveMapPage', () => {
     }))
     expect(await screen.findByText('≈ 6.0 km • ~18 min')).toBeInTheDocument()
     const routeLines = await screen.findAllByTestId('polyline')
-    expect(routeLines).toHaveLength(2)
+    expectUniformBlueRouteLines(routeLines)
     const routeVertices = JSON.stringify(
       expectedRoadCoordinates(campusLoopStops).map(([longitude, latitude]) => [latitude, longitude]),
     )
@@ -299,10 +306,49 @@ describe('LiveMapPage', () => {
       expect(routeLine).toHaveAttribute('data-positions', directRouteVertices)
     })
     expect(screen.getByTestId('route-summary')).toHaveTextContent('≈ 4.4 km • ~13 min')
-    expect(globalThis.fetch).toHaveBeenCalledTimes(6)
+    expect(globalThis.fetch).toHaveBeenCalledTimes(12)
   })
 
-  it('falls back to a straight segment only when a pair exceeds the detour guard', async () => {
+  it('uses road geometry when a pair exceeds the strict guard but passes the relaxed guard', async () => {
+    const relaxedSegmentIndex = 2
+    globalThis.fetch.mockImplementation((url) => {
+      const pair = getPairFromUrl(url)
+      const relaxedPair = pair[0][0] === Number(campusLoopStops[relaxedSegmentIndex].longitude)
+        && pair[1][0] === Number(campusLoopStops[relaxedSegmentIndex + 1].longitude)
+      return Promise.resolve(createRoadRouteResponse(url, {
+        distanceMeters: relaxedPair ? 4000 : 1000,
+      }))
+    })
+    renderMap()
+
+    const expectedDistanceKm = campusLoopStops.slice(1).reduce((sum, _stop, index) => (
+      sum + (index === relaxedSegmentIndex ? 4 : 1)
+    ), 0)
+    const expectedSummary = `≈ ${expectedDistanceKm.toFixed(1)} km • ~${Math.round((expectedDistanceKm / 20) * 60)} min`
+    expect(await screen.findByText(expectedSummary)).toBeInTheDocument()
+
+    const routeVertices = JSON.stringify(
+      expectedRoadCoordinates(campusLoopStops)
+        .map(([longitude, latitude]) => [latitude, longitude]),
+    )
+    const routeLines = screen.getAllByTestId('polyline')
+    expectUniformBlueRouteLines(routeLines)
+    routeLines.forEach((routeLine) => {
+      expect(routeLine).toHaveAttribute('data-positions', routeVertices)
+    })
+    expect(screen.queryByText('Road routing unavailable - showing direct demo line.'))
+      .not.toBeInTheDocument()
+
+    const relaxedPairUrl = routeUrl(
+      campusLoopStops[relaxedSegmentIndex],
+      campusLoopStops[relaxedSegmentIndex + 1],
+    )
+    const requestedUrls = globalThis.fetch.mock.calls.map(([url]) => url)
+    expect(requestedUrls.filter((url) => url === relaxedPairUrl)).toHaveLength(2)
+    expect(globalThis.fetch).toHaveBeenCalledTimes(7)
+  })
+
+  it('falls back to a straight segment when a pair exceeds both detour guards', async () => {
     const detourSegmentIndex = 2
     globalThis.fetch.mockImplementation((url) => {
       const pair = getPairFromUrl(url)
@@ -328,13 +374,13 @@ describe('LiveMapPage', () => {
         .map(([longitude, latitude]) => [latitude, longitude]),
     )
     const routeLines = screen.getAllByTestId('polyline')
-    expect(routeLines).toHaveLength(2)
+    expectUniformBlueRouteLines(routeLines)
     routeLines.forEach((routeLine) => {
       expect(routeLine).toHaveAttribute('data-positions', routeVertices)
     })
     expect(screen.queryByText('Road routing unavailable - showing direct demo line.'))
       .not.toBeInTheDocument()
-    expect(globalThis.fetch).toHaveBeenCalledTimes(6)
+    expect(globalThis.fetch).toHaveBeenCalledTimes(7)
   })
 
   it('flies to the place selected by the place query parameter', async () => {
