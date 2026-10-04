@@ -1,171 +1,100 @@
-# Campus Bus Tracking App
+# DHSGU Campus Bus Tracker
 
-A mobile-responsive campus guide and bus-tracking demonstration for Dr. Harisingh Gour Vishwavidyalaya (DHSGU), also called Sagar University. Students can review routes and stops, browse named campus places, view bus markers, and see service alerts. A demonstration driver panel updates placeholder bus positions/status and broadcasts alerts.
+A campus-focused transit and wayfinding web app for Dr. Harisingh Gour University (DHSGU). The React client brings together a live bus map, a seven-stop campus itinerary, driver-posted location and status updates, service alerts, and a Gemini-powered campus assistant with an offline fallback. It is a hackathon demonstration, not an official DHSGU transit service.
 
-## Problem and Objectives
+## Live URLs
 
-For the CodeCraft Mobile App Development Challenge, this project addresses the difficulty of knowing where campus buses are, when they will reach stops, and whether service has changed. Its objectives are to make route and schedule information easy to find, provide live or demonstration GPS updates, and communicate delays and route changes promptly.
+- Frontend: [https://campus-bus-tracking-app-dhsgu-final.vercel.app](https://campus-bus-tracking-app-dhsgu-final.vercel.app)
+- Backend health: [https://dhsgu-bus-api.onrender.com/api/health](https://dhsgu-bus-api.onrender.com/api/health)
+- API base: [https://dhsgu-bus-api.onrender.com](https://dhsgu-bus-api.onrender.com)
 
-Only the university facts and place names listed in this README are sourced from verified DHSGU information. Bus routes, stop names/times, driver labels, and bus locations are demonstration data marked with `Demo data - not official`; they are not official DHSGU routes or vehicle tracking. The five seeded campus landmarks use the provided campus coordinates, and the map center frames those locations. The driver panel can use browser GPS where available or manual coordinates.
+The Render free tier may take up to 60 seconds to wake after inactivity. Allow for this cold start before the demo.
 
 ## Features
 
-- Browse bus routes, service hours, and stop arrival/departure times.
-- Browse DHSGU place names and facility categories; unverified coordinates are labeled.
-- View bus markers on an OpenStreetMap-based Leaflet map; bus locations refresh every 10 seconds.
-- See bus status badges and active delay/route-change alerts.
-- Update bus coordinates and status from the demonstration driver panel.
-- Create and activate/deactivate service alerts.
-- Ask the DHSGU Transit & Safety Assistant about verified university facts and current active alerts; without a Gemini key it uses offline demo replies.
-- Select Student, Faculty, or Driver to choose the default landing page; this is not authentication.
-- Optionally require a demo Driver PIN for write requests.
-- Use the REST API backed by a local SQLite database.
+- Google-style live map with campus bus markers, a blue-cased route, OSRM road routing, and a per-segment straight-line fallback when road geometry is unavailable or an unreasonable detour.
+- Seven-stop Campus Circle demo itinerary: Vivekanand Boys Hostel; Rani Laxmi Bai Girls Hostel; Institute of Engineering & Technology; Department of Computer Science and Applications; Department of Criminology and Forensic; Nivedita Girls Hostel; Jawaharlal Nehru Central Library.
+- Driver panel for posting a bus location and status. Demo PIN: `dhsgu2026`. This PIN is a demonstration safeguard, not production authentication.
+- Gemini-powered campus assistant with a transparent offline reply when the API key is missing or the service is unavailable.
+- Bus location refresh every 10 seconds.
+- Service alerts and campus place browsing.
 
 ## Technology Stack
 
-- Frontend: React, Vite, React Router, Axios, Bootstrap
-- Mapping: Leaflet, React-Leaflet, OpenStreetMap tiles
-- Backend: Python, Flask, Flask-CORS
-- Database: SQLite
-- Deployment targets: Vercel (frontend), Render or Railway (backend)
+| Layer | Technology | Hosting / role |
+| --- | --- | --- |
+| Frontend | React, Vite, Leaflet | Vercel SPA |
+| Backend | Flask, SQLite, Gunicorn | Render API |
+| External services | OSRM, Google Gemini | Road routing and optional AI replies |
 
-## Project Structure
+## Architecture
 
 ```text
-campus-bus-tracking/
-  backend/
-    app.py                 Flask app and health endpoint
-    routes.py              REST API endpoints
-    database.py            SQLite schema and connection helper
-    seed.py                Demonstration data
-    requirements.txt       Python dependencies, including Gemini SDK
-    .env.example           Backend-only environment variable template
-    campus_bus.db          Created locally at runtime; not committed
-    tests/                 Flask test-client tests using temporary SQLite databases
-  docs/
-    api-documentation.md   Endpoint reference
-    demo-script.md         Hackathon presentation outline
-  frontend/
-    src/components/        Shared UI components
-    src/pages/             Dashboard, routes, map, alerts, driver panel
-    src/services/          API and browser geolocation services
-    .env.example           Local API URL example
+Browser --> Vercel SPA --> Render Flask API --> SQLite
+               |                  |                (demo data seeded at startup)
+               +--> OSRM          +--> Google Gemini (optional)
 ```
 
-## Prerequisites
+The browser uses the Render API for app data and driver updates. OSRM provides road geometry to the map; Gemini is called by the backend when configured. The backend initializes and seeds the SQLite database at startup.
 
-- Node.js 20.19+ or 22.12+ and npm (required by the current Vite version)
-- Python 3.10+
-- A modern browser; browser location requires permission and a secure context (localhost is allowed)
+## Local Quickstart
 
-## Installation and Local Run
+Requires Python 3.10+ and Node.js 20.19+ or 22.12+.
 
-Run the backend first. In PowerShell from the project root:
+Start the backend from the repository root:
 
 ```powershell
-cd backend
-python -m venv venv
-venv\Scripts\Activate.ps1
+cd campus-bus-tracking\backend
+python -m venv .venv
+.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
-python seed.py
 python app.py
 ```
 
-The API runs at `http://127.0.0.1:5000`. The database schema and demo data are initialized automatically when the backend starts. Keep this terminal open. In a second PowerShell terminal, from the project root:
+The API starts at `http://127.0.0.1:5000`; the app initializes and seeds its local SQLite database on startup. Keep this terminal running.
+
+In a second terminal, start the frontend:
 
 ```powershell
-cd frontend
+cd campus-bus-tracking\frontend
 npm install
-Copy-Item .env.example .env.local
 npm run dev
 ```
 
-Open the Vite URL printed in the terminal, usually `http://localhost:5173`. `VITE_API_BASE_URL` is the API origin only, with no `/api` suffix; the local fallback is `http://127.0.0.1:5000`. `python seed.py` can also be run manually and is idempotent; `python seed.py --reset` clears and recreates rows marked unverified/demo while preserving verified rows and university facts.
+Open the Vite URL printed in the terminal, usually `http://localhost:5173`.
 
-If PowerShell blocks virtual-environment activation, use `venv\Scripts\python.exe -m pip install -r requirements.txt`, `venv\Scripts\python.exe seed.py`, and `venv\Scripts\python.exe app.py` instead.
+## Tests
 
-The Driver Panel prompts for a PIN. If `DRIVER_PIN` is set, enter that value; if it is unset, the backend uses the built-in demo PIN `dhsgu2026`. An explicitly empty `DRIVER_PIN` disables the optional check. The PIN is kept in `sessionStorage` for that browser tab and sent as `X-Driver-Pin`. This is a demonstration safeguard only, not real authentication.
-
-### Gemini Assistant (Optional)
-
-The assistant uses the backend-only `GEMINI_API_KEY` variable; never add the key to a `VITE_` variable or commit it. Create a free key in [Google AI Studio](https://aistudio.google.com/app/apikey), copy `backend/.env.example` to a private notes file if useful, then set it in the PowerShell session running Flask:
+Run the backend and frontend suites from the repository root:
 
 ```powershell
-$env:GEMINI_API_KEY = "your-key-from-google-ai-studio"
-python app.py
+cd campus-bus-tracking\backend
+python -m unittest discover -s tests -v
+cd ..\frontend
+npm test
 ```
-
-Install the requested Gemini SDK into the backend virtual environment with:
-
-```powershell
-cd backend
-venv\Scripts\Activate.ps1
-python -m pip install google-generativeai
-```
-
-Alternatively rerun `python -m pip install -r requirements.txt`. When the key is absent or Gemini is unavailable, `/api/chat` returns an offline response directing users to the Routes, Places, Live Map, or Alerts pages. The assistant uses university information, verified place rows, active alerts, and route summaries as RAG-lite context; unverified demo entries are explicitly identified in its instructions.
-
-Test the endpoint locally without an API key (the response should mention offline demo mode):
-
-```powershell
-curl.exe -X POST http://127.0.0.1:5000/api/chat `
-  -H "Content-Type: application/json" `
-  --data-raw '{"message":"Are there any bus delays today?"}'
-```
-
-To run backend tests from `backend`, use `python -m unittest discover -s tests -v`. To verify the frontend, run `npm run build` and `npm run lint` from `frontend`.
-
-## API Documentation Summary
-
-The API base URL locally is `http://127.0.0.1:5000`. The full request and response examples are in [docs/api-documentation.md](docs/api-documentation.md).
-
-- `GET /api/health`
-- `GET /api/university`
-- `GET /api/places`, `GET /api/places?category=HOSTEL`, and `GET /api/places/<place_id>`
-- `GET /api/routes` and `GET /api/routes/<route_id>`
-- `GET /api/buses` and `GET /api/buses/<bus_id>`
-- `POST /api/buses/<bus_id>/location`
-- `POST /api/buses/<bus_id>/status`
-- `GET /api/alerts`, `POST /api/alerts`, and `PATCH /api/alerts/<alert_id>`
-- `POST /api/chat` with `{"message":"..."}` for the Gemini/offline assistant
-
-## Demonstration
-
-See [docs/demo-script.md](docs/demo-script.md) for a timed 5–10-minute presentation plan. For a quick run-through, open Places/About DHSGU, browse a demo route and its stops, inspect the Live Map, then use Driver Panel to change a bus location/status and broadcast a demo alert.
-
-## Screenshots
-
-Add screenshots of the Home dashboard, route details, Live Map, and Driver Panel here after capturing them for the submission.
-
-## Future Improvements
-
-- Push notifications for new or changed alerts.
-- A React Native mobile client.
-- Secure driver authentication and role-based administration.
-- Production-grade persistent storage and real vehicle GPS hardware integration.
-
-## Team
-
-Add individual/team member name(s) and submission details here.
-
-## Data You Must Confirm
-
-- Official routes, stop names, schedules, and driver/bus assignments with DHSGU transport staff.
-- Current contact details. No phone numbers or email addresses are fabricated; confirm with the Security Department or Registrar's office.
-- A deployment-only `DRIVER_PIN`, if the demo safeguard is enabled. Do not commit secrets.
 
 ## Deployment
 
-### Backend on Render or Railway
+**Render backend**
 
-Create a Python web service with `backend` as its root directory. Use `pip install -r requirements.txt` as the build command. Gunicorn is included in `requirements.txt` for non-Windows platforms. Use this start command so the service binds to the hosting platform's assigned port:
+- Root directory: `campus-bus-tracking/backend`
+- Build command: `pip install -r requirements.txt`
+- Start command: `gunicorn app:app --bind 0.0.0.0:$PORT`
+- The Flask app initializes and seeds the database at startup. SQLite on an ephemeral free-tier filesystem is not durable across service restarts or redeploys.
 
-```text
-gunicorn app:app --bind 0.0.0.0:$PORT
-```
+**Vercel frontend**
 
-The equivalent basic Gunicorn command is `gunicorn app:app`; use the explicit `$PORT` binding when required by the host. Set `FRONTEND_ORIGIN` to the deployed Vercel origin so Flask-CORS accepts browser requests. Set `GEMINI_API_KEY` in the backend service's environment settings to enable AI replies; do not place it in frontend settings. Set a private `DRIVER_PIN` in the provider's environment settings; the built-in PIN is public demo-only protection. The app initializes the schema and reseeds demo data at startup. SQLite files on many hosted services are ephemeral, so runtime updates are lost across restarts; use durable storage or a managed database if data must persist.
+- Root directory: `campus-bus-tracking/frontend`
+- Build command: `npm run build`
+- Output directory: `dist`
+- `frontend/vercel.json` rewrites SPA paths to `/index.html`, enabling direct routes such as `/live-map` and `/driver-panel`.
+- Set `VITE_API_BASE_URL` to `https://dhsgu-bus-api.onrender.com` in Vercel project settings.
 
-### Frontend on Vercel
+## Demonstration Data Notice
 
-Import the repository into Vercel and set the project root directory to `frontend`. Use `npm run build` as the build command and `dist` as the output directory. Add the environment variable `VITE_API_BASE_URL` with the deployed backend origin, for example `https://your-campus-bus-api.example.com` (no `/api` suffix). Vite embeds this value at build time, so redeploy after changing it. Set the backend's `FRONTEND_ORIGIN` to the deployed Vercel origin. The checked-in `frontend/.env.example` is for local development only; configure the production value in Vercel's project settings.
+All routes, stops, timings, and driver/bus records are demonstration data, not official DHSGU schedules or vehicle tracking. Place coordinates are also unverified demo coordinates. Confirm route, schedule, location, and driver details with the university before any operational use.
+
+## Pitch Deck
+
+[CodeCraft Challenge: DHSGU Campus Bus Tracker](docs/CodeCraft_Challenge_DHSGU_Campus_Bus_Tracker.pptx)
