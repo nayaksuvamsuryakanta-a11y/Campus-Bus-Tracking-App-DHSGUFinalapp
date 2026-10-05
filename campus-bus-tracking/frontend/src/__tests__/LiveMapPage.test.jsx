@@ -16,10 +16,12 @@ vi.mock('../services/busService.js', () => ({
   getRouteDetails: vi.fn(),
 }))
 vi.mock('../services/placeService.js', () => ({ getPlaces: vi.fn() }))
+vi.mock('../services/alertService.js', () => ({ getAlerts: vi.fn() }))
 
 import L from 'leaflet'
 import { getBuses, getRouteDetails, getRoutes } from '../services/busService.js'
 import { getPlaces } from '../services/placeService.js'
+import { getAlerts } from '../services/alertService.js'
 import { mockMap } from './helpers.js'
 import LiveMapPage from '../pages/LiveMapPage.jsx'
 
@@ -157,6 +159,7 @@ describe('LiveMapPage', () => {
     )))
     getBuses.mockResolvedValue([delayedBus])
     getPlaces.mockResolvedValue([library])
+    getAlerts.mockResolvedValue([])
     getRoutes.mockResolvedValue([{ id: 1, route_name: 'Campus Circle Route (DEMO)' }])
     getRouteDetails.mockResolvedValue({
       route_name: 'Campus Circle Route (DEMO)',
@@ -170,6 +173,7 @@ describe('LiveMapPage', () => {
     expect(await screen.findByTestId('map')).toBeInTheDocument()
     expect(screen.getByTestId('map')).toHaveAttribute('data-center', '[23.8257,78.7785]')
     expect(screen.getByTestId('map')).toHaveAttribute('data-zoom', '15')
+    expect(screen.queryByRole('region', { name: 'Active alerts' })).not.toBeInTheDocument()
     expect(screen.getByTestId('tile-layer')).toHaveAttribute(
       'data-url',
       'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -419,5 +423,25 @@ describe('LiveMapPage', () => {
         { duration: 0.8 },
       )
     })
+  })
+
+  it('shows active alerts above the map and allows the banner to collapse', async () => {
+    getAlerts.mockResolvedValue([{
+      id: 91,
+      title: 'Campus emergency',
+      message: 'Call for support.',
+      alert_type: 'EMERGENCY',
+      is_active: 1,
+    }])
+    renderMap()
+
+    const banner = await screen.findByRole('region', { name: 'Active alerts' })
+    expect(within(banner).getByText('Campus emergency')).toBeInTheDocument()
+    expect(within(banner).getByRole('link', { name: '07582-265810' })).toHaveAttribute(
+      'href',
+      'tel:+917582265810',
+    )
+    fireEvent.click(within(banner).getByRole('button', { name: /Active alerts/ }))
+    expect(within(banner).queryByText('Campus emergency')).not.toBeInTheDocument()
   })
 })

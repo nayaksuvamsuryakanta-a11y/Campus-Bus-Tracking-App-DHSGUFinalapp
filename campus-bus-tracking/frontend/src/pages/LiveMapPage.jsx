@@ -12,6 +12,8 @@ import Loader from '../components/Loader.jsx'
 import StatusBadge from '../components/StatusBadge.jsx'
 import DemoBadge from '../components/DemoBadge.jsx'
 import { UNIVERSITY } from '../config/university.js'
+import { getAlertMeta } from '../services/alertMeta.js'
+import { getAlerts } from '../services/alertService.js'
 import { getBuses, getRouteDetails, getRoutes } from '../services/busService.js'
 import { getPlaces } from '../services/placeService.js'
 import { fetchRoadRoute } from '../services/roadRoutingService.js'
@@ -173,6 +175,8 @@ function LiveMapPage() {
   const [showSimulatedBus, setShowSimulatedBus] = useState(true)
   const [busSimulationDistance, setBusSimulationDistance] = useState(0)
   const [isItineraryOpen, setIsItineraryOpen] = useState(false)
+  const [activeAlerts, setActiveAlerts] = useState([])
+  const [isAlertBannerExpanded, setIsAlertBannerExpanded] = useState(true)
   const [lastUpdated, setLastUpdated] = useState(null)
   const [roadRoutingResult, setRoadRoutingResult] = useState({
     routeKey: '',
@@ -222,6 +226,30 @@ function LiveMapPage() {
       })
     return () => {
       isCurrent = false
+    }
+  }, [])
+
+  useEffect(() => {
+    let isCurrent = true
+    let refreshInProgress = false
+    const refreshAlerts = async () => {
+      if (refreshInProgress) return
+      refreshInProgress = true
+      try {
+        const data = await getAlerts()
+        if (isCurrent) setActiveAlerts(data.filter((alert) => Boolean(alert.is_active)))
+      } catch {
+        if (isCurrent) setActiveAlerts([])
+      } finally {
+        refreshInProgress = false
+      }
+    }
+
+    refreshAlerts()
+    const intervalId = window.setInterval(refreshAlerts, 30000)
+    return () => {
+      isCurrent = false
+      window.clearInterval(intervalId)
     }
   }, [])
 
@@ -334,6 +362,48 @@ function LiveMapPage() {
           Last updated: {lastUpdated ? lastUpdated.toLocaleTimeString() : 'Waiting for data'}
         </p>
       </header>
+
+      {activeAlerts.length > 0 && (
+        <section className="live-map-alert-banner" aria-label="Active alerts">
+          <button
+            className="live-map-alert-banner-toggle"
+            type="button"
+            aria-expanded={isAlertBannerExpanded}
+            onClick={() => setIsAlertBannerExpanded((expanded) => !expanded)}
+          >
+            <span>Active alerts ({activeAlerts.length})</span>
+            <span aria-hidden="true">{isAlertBannerExpanded ? '−' : '+'}</span>
+          </button>
+          {isAlertBannerExpanded && (
+            <div className="live-map-alert-banner-list">
+              {activeAlerts.map((alert) => {
+                const meta = getAlertMeta(alert.alert_type)
+                return (
+                  <article
+                    className="live-map-alert-banner-item"
+                    key={alert.id}
+                    style={{ borderLeftColor: meta.borderColor }}
+                  >
+                    <span
+                      className={meta.badgeClass}
+                      style={alert.alert_type === 'GENERAL'
+                        ? { backgroundColor: meta.borderColor, color: '#fff' }
+                        : undefined}
+                    >
+                      <span aria-hidden="true">{meta.icon}</span>{' '}
+                      {alert.alert_type.replaceAll('_', ' ')}
+                    </span>
+                    <span className="fw-semibold">{alert.title}</span>
+                    {alert.alert_type === 'EMERGENCY' && (
+                      <a href="tel:+917582265810">07582-265810</a>
+                    )}
+                  </article>
+                )
+              })}
+            </div>
+          )}
+        </section>
+      )}
 
       <div className="live-map-stage">
         <MapContainer

@@ -21,3 +21,8 @@ export async function updateAlertStatus(alertId, isActive) {
   })
   return data
 }
+
+export async function deactivateAlert(alertId) {
+  const { data } = await api.post(`/api/alerts/${alertId}/deactivate`)
+  return data
+}

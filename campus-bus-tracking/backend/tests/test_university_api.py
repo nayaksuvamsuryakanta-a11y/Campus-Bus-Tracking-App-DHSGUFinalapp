@@ -322,6 +322,42 @@ class UniversityPlaceApiTests(unittest.TestCase):
         self.assertEqual([response.status_code for response in denied_responses], [401] * 4)
         self.assertEqual([response.status_code for response in accepted_responses], [200, 200, 201, 200])
 
+    def test_deactivate_alert_returns_the_updated_alert(self):
+        connection = database.get_db_connection()
+        cursor = connection.execute(
+            "INSERT INTO alerts (title, message, alert_type) VALUES (?, ?, ?)",
+            ("Emergency drill", "Call campus security if needed.", "EMERGENCY"),
+        )
+        connection.commit()
+        alert_id = cursor.lastrowid
+        connection.close()
+
+        with patch.dict(os.environ, {"DRIVER_PIN": "deactivate-pin"}):
+            response = self.client.post(
+                f"/api/alerts/{alert_id}/deactivate",
+                headers={"X-Driver-Pin": "deactivate-pin"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["id"], alert_id)
+        self.assertEqual(response.get_json()["is_active"], 0)
+        self.assertEqual(response.get_json()["alert_type"], "EMERGENCY")
+
+    def test_deactivate_alert_requires_a_pin(self):
+        with patch.dict(os.environ, {"DRIVER_PIN": "deactivate-pin"}):
+            response = self.client.post("/api/alerts/123/deactivate")
+
+        self.assertEqual(response.status_code, 401)
+
+    def test_deactivate_alert_returns_not_found_for_unknown_id(self):
+        with patch.dict(os.environ, {"DRIVER_PIN": "deactivate-pin"}):
+            response = self.client.post(
+                "/api/alerts/123/deactivate",
+                headers={"X-Driver-Pin": "deactivate-pin"},
+            )
+
+        self.assertEqual(response.status_code, 404)
+
     def test_unset_driver_pin_uses_demo_default(self):
         connection = database.get_db_connection()
         cursor = connection.execute(

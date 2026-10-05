@@ -5,7 +5,7 @@ vi.mock('../services/api.js', () => ({
 }))
 
 import api from '../services/api.js'
-import { createAlert, getAlerts, updateAlertStatus } from '../services/alertService.js'
+import { createAlert, deactivateAlert, getAlerts, updateAlertStatus } from '../services/alertService.js'
 
 describe('alertService', () => {
   beforeEach(() => {
@@ -34,5 +34,12 @@ describe('alertService', () => {
     api.post.mockRejectedValue(failure)
 
     await expect(createAlert('Notice', 'Message', 'GENERAL', true)).rejects.toBe(failure)
+  })
+
+  it('deactivates an alert through the PIN-authenticated endpoint', async () => {
+    api.post.mockResolvedValue({ data: { id: 3, is_active: 0 } })
+
+    await expect(deactivateAlert(3)).resolves.toEqual({ id: 3, is_active: 0 })
+    expect(api.post).toHaveBeenCalledWith('/api/alerts/3/deactivate')
   })
 })

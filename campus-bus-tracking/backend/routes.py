@@ -13,7 +13,7 @@ from database import get_db_connection
 api = Blueprint("api", __name__)
 
 BUS_STATUSES = {"ON_TIME", "DELAYED", "IN_TRANSIT", "OFFLINE"}
-ALERT_TYPES = {"DELAY", "ROUTE_CHANGE", "CANCELLATION", "GENERAL"}
+ALERT_TYPES = {"DELAY", "ROUTE_CHANGE", "CANCELLATION", "EMERGENCY", "GENERAL"}
 PLACE_CATEGORIES = {
     "GATE", "HOSTEL", "ACADEMIC", "LIBRARY", "AUDITORIUM", "HEALTH",
     "BANK", "CANTEEN", "SPORTS", "GARDEN", "MUSEUM", "SCHOOL",
@@ -403,5 +403,27 @@ def update_alert(alert_id):
                 "is_active": bool(is_active),
             }
         )
+    finally:
+        connection.close()
+
+
+@api.post("/alerts/<int:alert_id>/deactivate")
+def deactivate_alert(alert_id):
+    pin_error = _driver_pin_error()
+    if pin_error:
+        return pin_error
+
+    connection = get_db_connection()
+    try:
+        cursor = connection.execute(
+            "UPDATE alerts SET is_active = 0 WHERE id = ?", (alert_id,)
+        )
+        if cursor.rowcount == 0:
+            return _error("Alert not found", 404)
+        connection.commit()
+        alert = connection.execute(
+            "SELECT * FROM alerts WHERE id = ?", (alert_id,)
+        ).fetchone()
+        return jsonify(dict(alert))
     finally:
         connection.close()
