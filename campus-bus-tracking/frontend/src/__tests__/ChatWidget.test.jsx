@@ -9,7 +9,7 @@ import ChatWidget from '../components/ChatWidget.jsx'
 
 describe('ChatWidget', () => {
   beforeEach(() => {
-    sendChatMessage.mockResolvedValue({ reply: 'The Routes page has the schedule.' })
+    sendChatMessage.mockResolvedValue({ answer: 'The Routes page has the schedule.', source: 'pollinations' })
   })
 
   it('opens the panel, sends a question, and renders the assistant reply', async () => {
@@ -44,7 +44,7 @@ describe('ChatWidget', () => {
     const user = userEvent.setup()
     let timestamp = 0
     vi.spyOn(Date, 'now').mockImplementation(() => ++timestamp)
-    sendChatMessage.mockImplementation(async (question) => ({ reply: `Answer to ${question}` }))
+    sendChatMessage.mockImplementation(async (question) => ({ answer: `Answer to ${question}`, source: 'offline' }))
     render(<ChatWidget />)
     await user.click(screen.getByRole('button', { name: 'Open DHSGU assistant' }))
     const input = screen.getByLabelText('Ask a question')
@@ -77,7 +77,7 @@ describe('ChatWidget', () => {
     fireEvent.submit(screen.getByLabelText('Ask a question').closest('form'))
     expect(sendChatMessage).toHaveBeenCalledTimes(1)
 
-    resolveMessage({ reply: 'Check the alerts page.' })
+    resolveMessage({ answer: 'Check the alerts page.', source: 'offline' })
     expect(await screen.findByText('Check the alerts page.')).toBeInTheDocument()
   })
 })

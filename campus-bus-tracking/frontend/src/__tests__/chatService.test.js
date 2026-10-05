@@ -13,10 +13,11 @@ describe('sendChatMessage', () => {
   })
 
   it('posts the message to the chat endpoint and returns the response data', async () => {
-    api.post.mockResolvedValue({ data: { reply: 'Check the Routes page.' } })
+    api.post.mockResolvedValue({ data: { answer: 'Check the Routes page.', source: 'offline' } })
 
     await expect(sendChatMessage('Where can I find routes?')).resolves.toEqual({
-      reply: 'Check the Routes page.',
+      answer: 'Check the Routes page.',
+      source: 'offline',
     })
     expect(api.post).toHaveBeenCalledWith('/api/chat', {
       message: 'Where can I find routes?',

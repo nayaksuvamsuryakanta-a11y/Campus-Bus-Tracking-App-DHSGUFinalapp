@@ -1,10 +1,10 @@
 import os
 import sqlite3
-import sys
 import unittest
+import urllib.parse
 import uuid
 from datetime import datetime, timezone
-from types import ModuleType, SimpleNamespace
+from io import BytesIO
 from unittest.mock import Mock, patch
 
 from flask import Flask
@@ -18,7 +18,7 @@ from seed import seed_database
 class UniversityPlaceApiTests(unittest.TestCase):
     def setUp(self):
         self.environment_snapshot = {
-            key: os.environ.get(key) for key in ("DRIVER_PIN", "GEMINI_API_KEY")
+            key: os.environ.get(key) for key in ("DRIVER_PIN",)
         }
         self.database_uri = self._new_database_uri()
         self.keeper_connection = self._connect_test_database()
@@ -549,7 +549,7 @@ class UniversityPlaceApiTests(unittest.TestCase):
             connection.close()
 
     def test_chat_offline_fallback_and_message_validation(self):
-        with patch.dict(os.environ, {"GEMINI_API_KEY": ""}):
+        with patch("routes.urllib.request.urlopen", side_effect=TimeoutError):
             response = self.client.post(
                 "/api/chat", json={"message": "Are there any bus delays today?"}
             )
@@ -558,99 +558,34 @@ class UniversityPlaceApiTests(unittest.TestCase):
             too_long = self.client.post("/api/chat", json={"message": "x" * 2001})
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("offline demo mode", response.get_json()["reply"])
+        self.assertEqual(set(response.get_json()), {"answer", "source"})
+        self.assertIn("offline demo mode", response.get_json()["answer"])
+        self.assertEqual(response.get_json()["source"], "offline")
         self.assertEqual(missing.status_code, 400)
         self.assertEqual(blank.status_code, 400)
         self.assertEqual(too_long.status_code, 400)
 
-    def test_chat_sends_rag_context_to_gemini(self):
-        connection = database.get_db_connection()
-        connection.execute(
-            """INSERT INTO campus_places
-               (name, category, description, is_verified)
-               VALUES (?, ?, ?, 1)""",
-            ("Verified Auditorium", "AUDITORIUM", "Verified place description"),
-        )
-        connection.execute(
-            """INSERT INTO routes (route_name, start_time, end_time, is_verified)
-               VALUES (?, ?, ?, 0)""",
-            ("Test route (DEMO)", "08:00", "09:00"),
-        )
-        connection.execute(
-            """INSERT INTO alerts (title, message, alert_type, is_active, is_demo)
-               VALUES (?, ?, ?, 1, 1)""",
-            ("Active demo delay", "A sample bus is delayed", "DELAY"),
-        )
-        connection.commit()
-        connection.close()
-
-        model = Mock()
-        model.generate_content.return_value = SimpleNamespace(text="Context-grounded answer")
-        generative_ai = ModuleType("google.generativeai")
-        generative_ai.configure = Mock()
-        generative_ai.GenerativeModel = Mock(return_value=model)
-        google_package = ModuleType("google")
-        google_package.__path__ = []
-        google_package.generativeai = generative_ai
-
-        with (
-            patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}),
-            patch.dict(
-                sys.modules,
-                {"google": google_package, "google.generativeai": generative_ai},
-            ),
-        ):
-            response = self.client.post(
-                "/api/chat", json={"message": "Where is the auditorium?"}
-            )
+    def test_chat_uses_pollinations_with_campus_aware_prompt(self):
+        message = "Where is the library?"
+        response_body = BytesIO(b"  Follow the posted campus signs.  ")
+        with patch("routes.urllib.request.urlopen", return_value=response_body) as urlopen:
+            response = self.client.post("/api/chat", json={"message": message})
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.get_json(), {"reply": "Context-grounded answer"})
-        model.generate_content.assert_called_once_with(
-            "Where is the auditorium?", request_options={"timeout": 30}
+        self.assertEqual(
+            response.get_json(),
+            {"answer": "Follow the posted campus signs.", "source": "pollinations"},
         )
-        system_instruction = generative_ai.GenerativeModel.call_args.kwargs[
-            "system_instruction"
-        ]
-        self.assertIn("Verified Auditorium", system_instruction)
-        self.assertIn("Active demo delay", system_instruction)
-        self.assertIn("Test route (DEMO)", system_instruction)
-        self.assertIn("Rani Laxmi Bai Girls Hostel", system_instruction)
-        self.assertIn("demo_place_names_only", system_instruction)
-
-    def test_chat_falls_back_when_gemini_import_is_missing(self):
-        with (
-            patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}),
-            patch.dict(sys.modules, {"google": None, "google.generativeai": None}),
-        ):
-            response = self.client.post("/api/chat", json={"message": "Hello"})
-
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("offline demo mode", response.get_json()["reply"])
-
-    def test_chat_falls_back_when_gemini_request_fails_with_empty_context(self):
-        model = Mock()
-        model.generate_content.side_effect = ConnectionError("network unavailable")
-        generative_ai = ModuleType("google.generativeai")
-        generative_ai.configure = Mock()
-        generative_ai.GenerativeModel = Mock(return_value=model)
-        google_package = ModuleType("google")
-        google_package.__path__ = []
-        google_package.generativeai = generative_ai
-
-        with (
-            patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}),
-            patch.dict(
-                sys.modules,
-                {"google": google_package, "google.generativeai": generative_ai},
-            ),
-        ):
-            response = self.client.post("/api/chat", json={"message": "Hello"})
-
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("offline demo mode", response.get_json()["reply"])
-        model.generate_content.assert_called_once_with(
-            "Hello", request_options={"timeout": 30}
+        prompt = (
+            "You are the DHSGU Transit & Safety Assistant. The campus bus route stops are: "
+            "Vivekanand Boys Hostel, Rani Laxmi Bai Girls Hostel, Institute Of Engineering And Technology, "
+            "Department of Computer Science and Applications, Department of Criminology and Forensic, "
+            "Nivedita Girls Hostel, Jawaharlal Nehru Central Library. Answer the user's question briefly, "
+            f"safely, and helpfully. Question: {message}"
+        )
+        urlopen.assert_called_once_with(
+            f"https://text.pollinations.ai/{urllib.parse.quote(prompt)}",
+            timeout=12,
         )
 
 

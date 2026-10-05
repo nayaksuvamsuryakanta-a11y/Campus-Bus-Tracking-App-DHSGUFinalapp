@@ -1,8 +1,9 @@
 import hmac
-import json
 import math
 import os
 from datetime import datetime, timezone
+import urllib.parse
+import urllib.request
 
 from flask import Blueprint, current_app, jsonify, request
 
@@ -49,45 +50,6 @@ def _driver_pin_error():
     return None
 
 
-def _build_chat_context():
-    connection = get_db_connection()
-    try:
-        university_info = connection.execute(
-            "SELECT key, value FROM university_info ORDER BY key"
-        ).fetchall()
-        verified_places = connection.execute(
-            """SELECT name, category, description, latitude, longitude, notes
-               FROM campus_places WHERE is_verified = 1 ORDER BY category, name"""
-        ).fetchall()
-        demo_place_names = connection.execute(
-            """SELECT name, category, description, notes
-               FROM campus_places WHERE is_verified = 0 ORDER BY category, name"""
-        ).fetchall()
-        active_alerts = connection.execute(
-            """SELECT title, message, alert_type, is_demo, created_at
-               FROM alerts WHERE is_active = 1 ORDER BY created_at DESC, id DESC"""
-        ).fetchall()
-        bus_statuses = connection.execute(
-            """SELECT b.bus_number, b.status, b.is_verified, r.route_name
-               FROM buses AS b LEFT JOIN routes AS r ON r.id = b.route_id
-               ORDER BY b.id"""
-        ).fetchall()
-        routes = connection.execute(
-            """SELECT route_name, start_time, end_time, is_verified
-               FROM routes ORDER BY id"""
-        ).fetchall()
-        return {
-            "university_info": [dict(row) for row in university_info],
-            "verified_places": [dict(row) for row in verified_places],
-            "demo_place_names_only": [dict(row) for row in demo_place_names],
-            "active_alerts": [dict(row) for row in active_alerts],
-            "bus_statuses": [dict(row) for row in bus_statuses],
-            "route_summary": [dict(row) for row in routes],
-        }
-    finally:
-        connection.close()
-
-
 def _offline_chat_reply(message):
     normalized = message.casefold()
     if any(term in normalized for term in ("delay", "alert", "cancel", "change")):
@@ -120,47 +82,26 @@ def chat():
     if len(message) > 2000:
         return _error("Message must be 2000 characters or fewer", 400)
 
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        return jsonify({"reply": _offline_chat_reply(message)})
-
     try:
-        context = _build_chat_context()
-        system_instruction = (
-            "You are the DHSGU Transit & Safety Assistant. Be polite, concise, "
-            "and helpful to students and faculty. Answer DHSGU factual questions "
-            "strictly from the supplied database context. Do not invent routes, "
-            "timetables, bus locations, driver names, contacts, or emergency "
-            "numbers. Routes marked is_verified=0 and alerts marked is_demo=1 "
-            "are demonstration data, not official DHSGU information. Only present "
-            "a place as officially verified if it appears in verified_places. "
-            "demo_place_names_only contains names without verified coordinates: "
-            "you may identify a listed name, but state its location is unverified "
-            "and direct the user to Places; never use those rows for directions. "
-            "For real-time bus locations, direct the user to the Live Map page. "
-            "If asked for an emergency number or unverified directions, say the "
-            "information is not available and suggest contacting the university "
-            "Security Department or local emergency services without guessing a number. "
-            "If the context does not contain an answer, say you cannot verify it.\n\n"
-            "Current database context (JSON):\n"
-            f"{json.dumps(context, ensure_ascii=False, default=str)}"
+        prompt = (
+            "You are the DHSGU Transit & Safety Assistant. The campus bus route stops are: "
+            "Vivekanand Boys Hostel, Rani Laxmi Bai Girls Hostel, Institute Of Engineering And Technology, "
+            "Department of Computer Science and Applications, Department of Criminology and Forensic, "
+            "Nivedita Girls Hostel, Jawaharlal Nehru Central Library. Answer the user's question briefly, "
+            f"safely, and helpfully. Question: {message}"
         )
-
-        import google.generativeai as genai
-
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel(
-            model_name="gemini-1.5-flash",
-            system_instruction=system_instruction,
-        )
-        response = model.generate_content(message, request_options={"timeout": 30})
-        reply = getattr(response, "text", "")
-        if not isinstance(reply, str) or not reply.strip():
-            raise ValueError("Gemini returned an empty response")
-        return jsonify({"reply": reply.strip()})
+        encoded_prompt = urllib.parse.quote(prompt)
+        with urllib.request.urlopen(
+            f"https://text.pollinations.ai/{encoded_prompt}",
+            timeout=12,
+        ) as response:
+            answer = response.read().decode("utf-8").strip()
+        if not answer:
+            raise ValueError("Pollinations returned an empty response")
+        return jsonify({"answer": answer, "source": "pollinations"})
     except Exception:
-        current_app.logger.exception("Gemini chat request failed")
-        return jsonify({"reply": _offline_chat_reply(message)})
+        current_app.logger.exception("Pollinations chat request failed")
+        return jsonify({"answer": _offline_chat_reply(message), "source": "offline"})
 
 
 @api.get("/university")

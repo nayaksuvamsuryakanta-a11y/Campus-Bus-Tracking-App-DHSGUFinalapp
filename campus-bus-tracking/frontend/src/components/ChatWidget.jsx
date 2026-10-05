@@ -34,7 +34,7 @@ function ChatWidget() {
       const result = await sendChatMessage(question)
       setMessages((current) => [
         ...current,
-        { id: `${Date.now()}-assistant`, role: 'assistant', text: result.reply },
+        { id: `${Date.now()}-assistant`, role: 'assistant', text: result.answer },
       ].slice(-21))
     } catch (error) {
       setMessages((current) => [
