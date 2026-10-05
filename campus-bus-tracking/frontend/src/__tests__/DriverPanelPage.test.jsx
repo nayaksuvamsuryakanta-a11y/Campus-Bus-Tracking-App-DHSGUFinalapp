@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -10,9 +10,23 @@ vi.mock('../services/busService.js', () => ({
   updateBusStatus: vi.fn(),
 }))
 vi.mock('../services/geolocationService.js', () => ({ getCurrentPosition: vi.fn() }))
+vi.mock('../services/gpsRecorderService.js', () => ({
+  start: vi.fn(),
+  stop: vi.fn(),
+  totalDistanceMetres: vi.fn(),
+}))
+vi.mock('react-leaflet', async () => {
+  const { createReactLeafletMock } = await import('./helpers.js')
+  return createReactLeafletMock()
+})
 
 import { createAlert } from '../services/alertService.js'
 import { getBuses, updateBusLocation, updateBusStatus } from '../services/busService.js'
+import {
+  start as startGpsRecording,
+  stop as stopGpsRecording,
+  totalDistanceMetres,
+} from '../services/gpsRecorderService.js'
 import DriverPanelPage from '../pages/DriverPanelPage.jsx'
 
 const buses = [{
@@ -43,6 +57,9 @@ describe('DriverPanelPage', () => {
       status: 'DELAYED',
     })
     createAlert.mockResolvedValue({ message: 'Alert created successfully' })
+    startGpsRecording.mockReturnValue(true)
+    stopGpsRecording.mockReturnValue([])
+    totalDistanceMetres.mockReturnValue(0)
   })
 
   it('shows the PIN gate, stores the entered PIN, and loads the panel after unlock', async () => {
@@ -113,5 +130,104 @@ describe('DriverPanelPage', () => {
       updated_at: '2026-10-01 12:00:00',
     })
     expect(await screen.findByText('Location updated successfully')).toBeInTheDocument()
+  })
+
+  it('shows a live GPS trace and exports the stopped coordinates', async () => {
+    const user = userEvent.setup()
+    const coordinates = [[23.820406, 78.770011], [23.8205, 78.7702]]
+    const clipboardWrite = vi.fn().mockResolvedValue(undefined)
+    const originalClipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard')
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: clipboardWrite },
+    })
+    let onGpsPoint
+    startGpsRecording.mockImplementation((onPoint) => {
+      onGpsPoint = onPoint
+      return true
+    })
+    stopGpsRecording.mockReturnValue(coordinates)
+    totalDistanceMetres.mockReturnValue(12.3)
+    sessionStorage.setItem('dhsgu-driver-unlocked', 'true')
+    renderDriverPanel()
+    await screen.findByRole('heading', { name: 'Driver panel' })
+
+    await user.click(screen.getByRole('button', { name: 'Start recording' }))
+    expect(startGpsRecording).toHaveBeenCalledWith(expect.any(Function), expect.any(Function))
+    await act(async () => {
+      onGpsPoint({ latitude: coordinates[0][0], longitude: coordinates[0][1] })
+      onGpsPoint({ latitude: coordinates[1][0], longitude: coordinates[1][1] })
+    })
+    expect(screen.getByRole('status')).toHaveTextContent('Points kept: 2 · Distance: 12.3 m')
+    expect(screen.getByTestId('polyline')).toHaveAttribute(
+      'data-path-options',
+      JSON.stringify({ color: '#34a853', weight: 5, lineCap: 'round', lineJoin: 'round' }),
+    )
+    expect(screen.getByTestId('circle-marker')).toHaveAttribute(
+      'data-center',
+      JSON.stringify(coordinates[1]),
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Stop recording' }))
+    expect(stopGpsRecording).toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Copy coordinates' }))
+    expect(clipboardWrite).toHaveBeenCalledWith(JSON.stringify(coordinates))
+    expect(screen.getByText('Coordinates copied.')).toBeInTheDocument()
+
+    const createObjectUrlDescriptor = Object.getOwnPropertyDescriptor(URL, 'createObjectURL')
+    const revokeObjectUrlDescriptor = Object.getOwnPropertyDescriptor(URL, 'revokeObjectURL')
+    const createObjectURL = vi.fn(() => 'blob:route-trace')
+    const revokeObjectURL = vi.fn()
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectURL })
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectURL })
+    let downloadedName = ''
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function recordDownload() {
+      downloadedName = this.download
+    })
+    await user.click(screen.getByRole('button', { name: 'Download JSON' }))
+    expect(downloadedName).toBe('route-trace.json')
+    expect(createObjectURL).toHaveBeenCalledWith(expect.objectContaining({ type: 'application/json' }))
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:route-trace')
+    const downloadBlob = createObjectURL.mock.calls[0][0]
+    const downloadText = await new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result)
+      reader.onerror = reject
+      reader.readAsText(downloadBlob)
+    })
+    expect(JSON.parse(downloadText)).toEqual(coordinates)
+
+    if (originalClipboard) {
+      Object.defineProperty(navigator, 'clipboard', originalClipboard)
+    } else {
+      delete navigator.clipboard
+    }
+    if (createObjectUrlDescriptor) {
+      Object.defineProperty(URL, 'createObjectURL', createObjectUrlDescriptor)
+    } else {
+      delete URL.createObjectURL
+    }
+    if (revokeObjectUrlDescriptor) {
+      Object.defineProperty(URL, 'revokeObjectURL', revokeObjectUrlDescriptor)
+    } else {
+      delete URL.revokeObjectURL
+    }
+  })
+
+  it.each([
+    'Location permission was denied. Allow location access and try again.',
+    'GPS location is unavailable. Check the device location settings and try again.',
+  ])('shows GPS failure inline without leaving recording active', async (errorMessage) => {
+    sessionStorage.setItem('dhsgu-driver-unlocked', 'true')
+    startGpsRecording.mockImplementation((_onPoint, onError) => {
+      onError(errorMessage, true)
+      return false
+    })
+    renderDriverPanel()
+    await screen.findByRole('heading', { name: 'Driver panel' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start recording' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(errorMessage)
+    expect(screen.getByRole('button', { name: 'Start recording' })).toBeInTheDocument()
   })
 })

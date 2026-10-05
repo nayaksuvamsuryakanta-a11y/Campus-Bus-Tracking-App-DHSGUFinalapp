@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react'
+import { CircleMarker, MapContainer, Polyline, TileLayer } from 'react-leaflet'
+import 'leaflet/dist/leaflet.css'
+import './DriverPanelPage.css'
 import ErrorMessage from '../components/ErrorMessage.jsx'
 import DemoBadge from '../components/DemoBadge.jsx'
 import Loader from '../components/Loader.jsx'
 import StatusBadge from '../components/StatusBadge.jsx'
+import { UNIVERSITY } from '../config/university.js'
 import { createAlert } from '../services/alertService.js'
 import {
   getBuses,
@@ -10,6 +14,11 @@ import {
   updateBusStatus,
 } from '../services/busService.js'
 import { getCurrentPosition } from '../services/geolocationService.js'
+import {
+  start as startGpsRecording,
+  stop as stopGpsRecording,
+  totalDistanceMetres,
+} from '../services/gpsRecorderService.js'
 
 const BUS_STATUSES = ['ON_TIME', 'DELAYED', 'IN_TRANSIT', 'OFFLINE']
 const ALERT_TYPES = ['DELAY', 'ROUTE_CHANGE', 'CANCELLATION', 'GENERAL']
@@ -26,6 +35,21 @@ function FeedbackMessage({ feedback }) {
 
 function formatCoordinate(value) {
   return Number.isFinite(Number(value)) ? Number(value).toFixed(5) : 'Unavailable'
+}
+
+function copyWithTextarea(text) {
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.setAttribute('readonly', '')
+  textarea.style.position = 'fixed'
+  textarea.style.opacity = '0'
+  document.body.append(textarea)
+  textarea.select()
+  try {
+    if (!document.execCommand?.('copy')) throw new Error('Clipboard copy is unavailable.')
+  } finally {
+    textarea.remove()
+  }
 }
 
 function DriverPanelPage() {
@@ -51,6 +75,12 @@ function DriverPanelPage() {
   const [locationFeedback, setLocationFeedback] = useState(null)
   const [statusFeedback, setStatusFeedback] = useState(null)
   const [alertFeedback, setAlertFeedback] = useState(null)
+  const [isRecordingRoute, setIsRecordingRoute] = useState(false)
+  const [hasStoppedRecording, setHasStoppedRecording] = useState(false)
+  const [recordedCoordinates, setRecordedCoordinates] = useState([])
+  const [recordingDistance, setRecordingDistance] = useState(0)
+  const [recorderError, setRecorderError] = useState('')
+  const [recorderFeedback, setRecorderFeedback] = useState(null)
 
   useEffect(() => {
     if (!isUnlocked) return undefined
@@ -83,6 +113,10 @@ function DriverPanelPage() {
   }, [isUnlocked])
 
   const selectedBus = buses.find((bus) => String(bus.id) === selectedBusId)
+
+  useEffect(() => () => {
+    stopGpsRecording()
+  }, [])
 
   function handleUnlock(event) {
     event.preventDefault()
@@ -118,6 +152,79 @@ function DriverPanelPage() {
       setLocationFeedback({ variant: 'danger', message: locationError.message })
     } finally {
       setIsLocating(false)
+    }
+  }
+
+  function handleStartRecording() {
+    setRecordedCoordinates([])
+    setRecordingDistance(0)
+    setRecorderError('')
+    setRecorderFeedback(null)
+    setHasStoppedRecording(false)
+    const started = startGpsRecording(
+      (point) => {
+        setRecordedCoordinates((coordinates) => [
+          ...coordinates,
+          [point.latitude, point.longitude],
+        ])
+        setRecordingDistance(totalDistanceMetres())
+        setRecorderError('')
+      },
+      (message, isFatal) => {
+        setRecorderError(message)
+        if (isFatal) {
+          setRecordedCoordinates(stopGpsRecording())
+          setRecordingDistance(totalDistanceMetres())
+          setIsRecordingRoute(false)
+          setHasStoppedRecording(true)
+        }
+      },
+    )
+    setIsRecordingRoute(started)
+  }
+
+  function handleStopRecording() {
+    setRecordedCoordinates(stopGpsRecording())
+    setRecordingDistance(totalDistanceMetres())
+    setIsRecordingRoute(false)
+    setHasStoppedRecording(true)
+    setRecorderError('')
+  }
+
+  async function handleCopyCoordinates() {
+    const serializedCoordinates = JSON.stringify(recordedCoordinates)
+    try {
+      if (navigator.clipboard?.writeText) {
+        try {
+          await navigator.clipboard.writeText(serializedCoordinates)
+        } catch {
+          copyWithTextarea(serializedCoordinates)
+        }
+      } else {
+        copyWithTextarea(serializedCoordinates)
+      }
+      setRecorderFeedback({ variant: 'success', message: 'Coordinates copied.' })
+    } catch {
+      setRecorderFeedback({ variant: 'danger', message: 'Unable to copy coordinates on this device.' })
+    }
+  }
+
+  function handleDownloadCoordinates() {
+    try {
+      const file = new Blob([JSON.stringify(recordedCoordinates, null, 2)], {
+        type: 'application/json',
+      })
+      const objectUrl = URL.createObjectURL(file)
+      const downloadLink = document.createElement('a')
+      downloadLink.href = objectUrl
+      downloadLink.download = 'route-trace.json'
+      document.body.append(downloadLink)
+      downloadLink.click()
+      downloadLink.remove()
+      URL.revokeObjectURL(objectUrl)
+      setRecorderFeedback({ variant: 'success', message: 'Route trace downloaded.' })
+    } catch {
+      setRecorderFeedback({ variant: 'danger', message: 'Unable to download the route trace.' })
     }
   }
 
@@ -264,6 +371,100 @@ function DriverPanelPage() {
           </section>
 
           <div className="row g-3">
+            <div className="col-12">
+              <section className="card" aria-labelledby="route-recorder-title">
+                <div className="card-body">
+                  <h2 className="h5 mb-3" id="route-recorder-title">
+                    Route recorder (real-time GPS)
+                  </h2>
+                  <div className="d-flex flex-wrap align-items-center gap-2">
+                    {!isRecordingRoute ? (
+                      <button
+                        className="btn btn-outline-success"
+                        type="button"
+                        onClick={handleStartRecording}
+                      >
+                        Start recording
+                      </button>
+                    ) : (
+                      <button
+                        className="btn btn-danger"
+                        type="button"
+                        onClick={handleStopRecording}
+                      >
+                        Stop recording
+                      </button>
+                    )}
+                    {hasStoppedRecording && (
+                      <>
+                        <button
+                          className="btn btn-outline-primary"
+                          type="button"
+                          onClick={handleCopyCoordinates}
+                          disabled={recordedCoordinates.length === 0}
+                        >
+                          Copy coordinates
+                        </button>
+                        <button
+                          className="btn btn-outline-primary"
+                          type="button"
+                          onClick={handleDownloadCoordinates}
+                          disabled={recordedCoordinates.length === 0}
+                        >
+                          Download JSON
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  {isRecordingRoute && (
+                    <>
+                      <p className="small text-body-secondary mt-3 mb-2" role="status" aria-live="polite">
+                        Points kept: {recordedCoordinates.length} · Distance: {recordingDistance.toFixed(1)} m
+                      </p>
+                      <div className="route-recorder-map" aria-label="Live GPS route trace">
+                        <MapContainer
+                          key={recordedCoordinates[0]?.join(',') || 'route-recorder-map'}
+                          center={recordedCoordinates[0] || UNIVERSITY.MAP_CENTER}
+                          zoom={16}
+                          scrollWheelZoom={false}
+                          style={{ height: '100%', width: '100%' }}
+                        >
+                          <TileLayer
+                            attribution="&copy; OpenStreetMap contributors"
+                            url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+                            maxZoom={19}
+                          />
+                          {recordedCoordinates.length > 1 && (
+                            <Polyline
+                              positions={recordedCoordinates}
+                              pathOptions={{ color: '#34a853', weight: 5, lineCap: 'round', lineJoin: 'round' }}
+                            />
+                          )}
+                          {recordedCoordinates.length > 0 && (
+                            <CircleMarker
+                              center={recordedCoordinates.at(-1)}
+                              radius={7}
+                              pathOptions={{
+                                color: '#188038',
+                                weight: 2,
+                                fillColor: '#34a853',
+                                fillOpacity: 1,
+                              }}
+                            />
+                          )}
+                        </MapContainer>
+                      </div>
+                    </>
+                  )}
+                  {recorderError && (
+                    <div className="alert alert-danger py-2 mt-3 mb-0" role="alert">
+                      {recorderError}
+                    </div>
+                  )}
+                  <FeedbackMessage feedback={recorderFeedback} />
+                </div>
+              </section>
+            </div>
             <div className="col-12 col-xl-6">
               <section className="card h-100" aria-labelledby="location-title">
                 <div className="card-body">
