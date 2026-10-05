@@ -52,6 +52,14 @@ def _driver_pin_error():
 
 def _offline_chat_reply(message):
     normalized = message.casefold()
+    if any(term in normalized for term in (
+        "safe", "safety", "emergency", "security", "help", "ragging",
+        "harassment", "night", "unsafe", "contact", "helpline",
+    )):
+        return (
+            "For immediate assistance, call the Campus Security Control Room "
+            "(24x7 helpline) at 07582-265810 immediately."
+        )
     if any(term in normalized for term in ("delay", "alert", "cancel", "change")):
         return (
             "I am currently in offline demo mode. Please check the Alerts page "
@@ -87,7 +95,10 @@ def chat():
             "You are the DHSGU Transit & Safety Assistant. The campus bus route stops are: "
             "Vivekanand Boys Hostel, Rani Laxmi Bai Girls Hostel, Institute Of Engineering And Technology, "
             "Department of Computer Science and Applications, Department of Criminology and Forensic, "
-            "Nivedita Girls Hostel, Jawaharlal Nehru Central Library. Answer the user's question briefly, "
+            "Nivedita Girls Hostel, Jawaharlal Nehru Central Library. "
+            "Campus Security Control Room (24x7 emergency helpline): 07582-265810. "
+            "If the user mentions safety, emergencies, ragging, harassment, medical help, or feeling unsafe, "
+            "tell them to call this number immediately. Answer the user's question briefly, "
             f"safely, and helpfully. Question: {message}"
         )
         encoded_prompt = urllib.parse.quote(prompt)

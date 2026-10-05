@@ -20,6 +20,11 @@ describe('ChatWidget', () => {
     expect(screen.getByRole('region', {
       name: 'DHSGU Transit and Safety Assistant',
     })).toBeInTheDocument()
+    expect(screen.getByText(/Emergency\? Call Campus Security Control Room:/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '07582-265810' })).toHaveAttribute(
+      'href',
+      'tel:+917582265810',
+    )
     await user.type(screen.getByLabelText('Ask a question'), 'Where are the routes?')
     await user.click(screen.getByRole('button', { name: 'Send' }))
 
@@ -60,7 +65,7 @@ describe('ChatWidget', () => {
       name: 'DHSGU Transit and Safety Assistant',
     })
     expect(within(panel).queryByText(/Ask about DHSGU facts/)).not.toBeInTheDocument()
-    expect(panel.querySelectorAll('p')).toHaveLength(21)
+    expect(panel.querySelectorAll('.card-body p')).toHaveLength(21)
   })
 
   it('disables sending during an in-flight request and ignores another submission', async () => {

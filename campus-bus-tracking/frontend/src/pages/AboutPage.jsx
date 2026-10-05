@@ -89,6 +89,15 @@ function AboutPage() {
               </div>
             ))}
           </div>
+          <section className="card mt-3" aria-labelledby="campus-security-title">
+            <div className="card-body py-3">
+              <h3 className="h6 mb-1" id="campus-security-title">Campus Security</h3>
+              <p className="small text-body-secondary mb-1">
+                Campus Security Control Room (24x7 helpline)
+              </p>
+              <a href="tel:+917582265810">07582-265810</a>
+            </div>
+          </section>
           <div className="alert alert-secondary mt-3 mb-0" role="note">
             Contact details: {info.security_contact || 'To be added - confirm with the Security Department'}; {info.registrar_contact || "To be added - confirm with the Registrar's office"}.
           </div>

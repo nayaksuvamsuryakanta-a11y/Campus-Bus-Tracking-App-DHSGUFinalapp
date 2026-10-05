@@ -91,6 +91,12 @@ function ChatWidget() {
             {isLoading && <Loader label="Assistant is thinking" />}
             <div ref={messageEndRef} />
           </div>
+          <p className="small text-body-secondary text-center border-top px-2 py-2 mb-0">
+            Emergency? Call Campus Security Control Room:{' '}
+            <a className="text-reset fw-semibold text-nowrap" href="tel:+917582265810">
+              07582-265810
+            </a>
+          </p>
           <form className="card-footer" onSubmit={handleSubmit}>
             <label className="visually-hidden" htmlFor="assistant-message">Ask a question</label>
             <div className="input-group">

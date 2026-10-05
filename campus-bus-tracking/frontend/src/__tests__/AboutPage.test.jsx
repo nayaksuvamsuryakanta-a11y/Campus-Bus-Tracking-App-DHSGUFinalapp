@@ -25,4 +25,9 @@ it('renders university facts and How to reach distances from the service', async
   expect(screen.getByText('Three kilometres from API.')).toBeInTheDocument()
   expect(screen.getByText('Four kilometres from API.')).toBeInTheDocument()
   expect(screen.getByText('Thirteen kilometres from API.')).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'Campus Security' })).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: '07582-265810' })).toHaveAttribute(
+    'href',
+    'tel:+917582265810',
+  )
 })

@@ -565,6 +565,17 @@ class UniversityPlaceApiTests(unittest.TestCase):
         self.assertEqual(blank.status_code, 400)
         self.assertEqual(too_long.status_code, 400)
 
+    def test_chat_offline_safety_reply_includes_campus_security_helpline(self):
+        with patch("routes.urllib.request.urlopen", side_effect=TimeoutError):
+            response = self.client.post(
+                "/api/chat", json={"message": "I feel unsafe walking at night"}
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["source"], "offline")
+        self.assertIn("07582-265810", response.get_json()["answer"])
+        self.assertIn("call", response.get_json()["answer"])
+
     def test_chat_uses_pollinations_with_campus_aware_prompt(self):
         message = "Where is the library?"
         response_body = BytesIO(b"  Follow the posted campus signs.  ")
@@ -580,7 +591,10 @@ class UniversityPlaceApiTests(unittest.TestCase):
             "You are the DHSGU Transit & Safety Assistant. The campus bus route stops are: "
             "Vivekanand Boys Hostel, Rani Laxmi Bai Girls Hostel, Institute Of Engineering And Technology, "
             "Department of Computer Science and Applications, Department of Criminology and Forensic, "
-            "Nivedita Girls Hostel, Jawaharlal Nehru Central Library. Answer the user's question briefly, "
+            "Nivedita Girls Hostel, Jawaharlal Nehru Central Library. "
+            "Campus Security Control Room (24x7 emergency helpline): 07582-265810. "
+            "If the user mentions safety, emergencies, ragging, harassment, medical help, or feeling unsafe, "
+            "tell them to call this number immediately. Answer the user's question briefly, "
             f"safely, and helpfully. Question: {message}"
         )
         urlopen.assert_called_once_with(
