@@ -50,24 +50,25 @@ describe('gpsRecorderService', () => {
       { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 },
     )
 
-    onPosition(positionAtMetres(0, 25))
-    onPosition(positionAtMetres(4.9, 5))
-    onPosition(positionAtMetres(5, 25))
-    onPosition(positionAtMetres(20, 25.01))
+    onPosition(positionAtMetres(0, 30))
+    onPosition(positionAtMetres(9.9, 5))
+    onPosition(positionAtMetres(10, 30))
+    onPosition(positionAtMetres(20, 30.01))
 
     expect(onPoint).toHaveBeenCalledTimes(2)
-    expect(totalDistanceMetres()).toBeCloseTo(5, 1)
+    expect(totalDistanceMetres()).toBeCloseTo(10, 1)
   })
 
-  it('caps the trace at 600 kept points', () => {
+  it('caps the trace at 2000 kept points', () => {
     const onPoint = vi.fn()
     start(onPoint)
-    for (let index = 0; index <= 600; index += 1) {
-      onPosition(positionAtMetres(index * 6))
+    for (let index = 0; index <= 2000; index += 1) {
+      onPosition(positionAtMetres(index * 11))
     }
 
-    expect(onPoint).toHaveBeenCalledTimes(600)
-    expect(stop()).toHaveLength(600)
+    expect(onPoint).toHaveBeenCalledTimes(2000)
+    expect(stop()).toHaveLength(2000)
+    expect(totalDistanceMetres()).toBeCloseTo(1999 * 11, 1)
     expect(clearWatch).toHaveBeenCalledWith(42)
   })
 

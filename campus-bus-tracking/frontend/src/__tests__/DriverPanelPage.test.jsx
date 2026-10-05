@@ -134,7 +134,7 @@ describe('DriverPanelPage', () => {
 
   it('shows a live GPS trace and exports the stopped coordinates', async () => {
     const user = userEvent.setup()
-    const coordinates = [[23.820406, 78.770011], [23.8205, 78.7702]]
+    const coordinates = [[23.820406, 78.770011], [23.820496, 78.770011]]
     const clipboardWrite = vi.fn().mockResolvedValue(undefined)
     const originalClipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard')
     Object.defineProperty(navigator, 'clipboard', {
@@ -147,7 +147,7 @@ describe('DriverPanelPage', () => {
       return true
     })
     stopGpsRecording.mockReturnValue(coordinates)
-    totalDistanceMetres.mockReturnValue(12.3)
+    totalDistanceMetres.mockReturnValue(10)
     sessionStorage.setItem('dhsgu-driver-unlocked', 'true')
     renderDriverPanel()
     await screen.findByRole('heading', { name: 'Driver panel' })
@@ -158,7 +158,7 @@ describe('DriverPanelPage', () => {
       onGpsPoint({ latitude: coordinates[0][0], longitude: coordinates[0][1] })
       onGpsPoint({ latitude: coordinates[1][0], longitude: coordinates[1][1] })
     })
-    expect(screen.getByRole('status')).toHaveTextContent('Points kept: 2 · Distance: 12.3 m')
+    expect(screen.getByRole('status')).toHaveTextContent('Points kept: 2 · Distance: 10.0 m')
     expect(screen.getByTestId('polyline')).toHaveAttribute(
       'data-path-options',
       JSON.stringify({ color: '#34a853', weight: 5, lineCap: 'round', lineJoin: 'round' }),
