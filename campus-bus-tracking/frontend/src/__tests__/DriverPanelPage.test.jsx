@@ -3,7 +3,11 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('../services/alertService.js', () => ({ createAlert: vi.fn() }))
+vi.mock('../services/alertService.js', () => ({
+  createAlert: vi.fn(),
+  deactivateAlert: vi.fn(),
+  getAlerts: vi.fn(),
+}))
 vi.mock('../services/busService.js', () => ({
   getBuses: vi.fn(),
   updateBusLocation: vi.fn(),
@@ -20,7 +24,7 @@ vi.mock('react-leaflet', async () => {
   return createReactLeafletMock()
 })
 
-import { createAlert } from '../services/alertService.js'
+import { createAlert, deactivateAlert, getAlerts } from '../services/alertService.js'
 import { getBuses, updateBusLocation, updateBusStatus } from '../services/busService.js'
 import {
   start as startGpsRecording,
@@ -57,6 +61,8 @@ describe('DriverPanelPage', () => {
       status: 'DELAYED',
     })
     createAlert.mockResolvedValue({ message: 'Alert created successfully' })
+    deactivateAlert.mockResolvedValue({ id: 7, is_active: 0 })
+    getAlerts.mockResolvedValue([])
     startGpsRecording.mockReturnValue(true)
     stopGpsRecording.mockReturnValue([])
     totalDistanceMetres.mockReturnValue(0)
@@ -229,5 +235,29 @@ describe('DriverPanelPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Start recording' }))
     expect(await screen.findByRole('alert')).toHaveTextContent(errorMessage)
     expect(screen.getByRole('button', { name: 'Start recording' })).toBeInTheDocument()
+  })
+
+  it('deactivates an active alert, refreshes the list, and confirms inline', async () => {
+    const user = userEvent.setup()
+    getAlerts
+      .mockResolvedValueOnce([{
+        id: 7,
+        title: 'Campus emergency',
+        message: 'Contact security.',
+        alert_type: 'EMERGENCY',
+        is_active: 1,
+      }])
+      .mockResolvedValueOnce([])
+    sessionStorage.setItem('dhsgu-driver-unlocked', 'true')
+    renderDriverPanel()
+    await screen.findByRole('heading', { name: 'Driver panel' })
+    expect(await screen.findByText('Campus emergency')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Deactivate Campus emergency' }))
+
+    expect(deactivateAlert).toHaveBeenCalledWith(7)
+    expect(await screen.findByText('Alert deactivated successfully.')).toBeInTheDocument()
+    expect(screen.queryByText('Campus emergency')).not.toBeInTheDocument()
+    expect(getAlerts).toHaveBeenCalledTimes(2)
   })
 })

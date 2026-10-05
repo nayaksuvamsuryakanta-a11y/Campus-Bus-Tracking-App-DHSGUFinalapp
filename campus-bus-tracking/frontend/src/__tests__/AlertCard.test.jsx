@@ -9,11 +9,11 @@ const baseAlert = {
   is_active: 1,
 }
 
-it('formats a UTC timestamp in Asia/Kolkata time', () => {
+it('shows a date for older alerts and preserves the UTC datetime attribute', () => {
   render(<AlertCard alert={{ ...baseAlert, created_at: '2025-01-01 06:30:00' }} />)
 
-  expect(screen.getByText(/12:00:00 pm/i)).toBeInTheDocument()
-  expect(screen.getByText(/12:00:00 pm/i).closest('time')).toHaveAttribute(
+  expect(screen.getByText('1 Jan 2025')).toBeInTheDocument()
+  expect(screen.getByText('1 Jan 2025').closest('time')).toHaveAttribute(
     'dateTime',
     '2025-01-01T06:30:00.000Z',
   )

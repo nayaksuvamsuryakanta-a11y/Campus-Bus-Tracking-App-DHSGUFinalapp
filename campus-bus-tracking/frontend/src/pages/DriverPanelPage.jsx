@@ -7,7 +7,8 @@ import DemoBadge from '../components/DemoBadge.jsx'
 import Loader from '../components/Loader.jsx'
 import StatusBadge from '../components/StatusBadge.jsx'
 import { UNIVERSITY } from '../config/university.js'
-import { createAlert } from '../services/alertService.js'
+import { createAlert, deactivateAlert, getAlerts } from '../services/alertService.js'
+import { getAlertMeta } from '../services/alertMeta.js'
 import {
   getBuses,
   updateBusLocation,
@@ -21,7 +22,7 @@ import {
 } from '../services/gpsRecorderService.js'
 
 const BUS_STATUSES = ['ON_TIME', 'DELAYED', 'IN_TRANSIT', 'OFFLINE']
-const ALERT_TYPES = ['DELAY', 'ROUTE_CHANGE', 'CANCELLATION', 'GENERAL']
+const ALERT_TYPES = ['DELAY', 'ROUTE_CHANGE', 'EMERGENCY', 'CANCELLATION', 'GENERAL']
 
 function FeedbackMessage({ feedback }) {
   if (!feedback) return null
@@ -75,6 +76,7 @@ function DriverPanelPage() {
   const [locationFeedback, setLocationFeedback] = useState(null)
   const [statusFeedback, setStatusFeedback] = useState(null)
   const [alertFeedback, setAlertFeedback] = useState(null)
+  const [activeAlerts, setActiveAlerts] = useState([])
   const [isRecordingRoute, setIsRecordingRoute] = useState(false)
   const [hasStoppedRecording, setHasStoppedRecording] = useState(false)
   const [recordedCoordinates, setRecordedCoordinates] = useState([])
@@ -112,7 +114,30 @@ function DriverPanelPage() {
     }
   }, [isUnlocked])
 
+  useEffect(() => {
+    if (!isUnlocked) return undefined
+
+    let isCurrent = true
+    getAlerts()
+      .then((data) => {
+        if (isCurrent) setActiveAlerts(data.filter((alert) => Boolean(alert.is_active)))
+      })
+      .catch(() => {
+        if (isCurrent) {
+          setAlertFeedback({ variant: 'danger', message: 'Unable to load active alerts.' })
+        }
+      })
+    return () => {
+      isCurrent = false
+    }
+  }, [isUnlocked])
+
   const selectedBus = buses.find((bus) => String(bus.id) === selectedBusId)
+
+  async function refreshActiveAlerts() {
+    const alerts = await getAlerts()
+    setActiveAlerts(alerts.filter((alert) => Boolean(alert.is_active)))
+  }
 
   useEffect(() => () => {
     stopGpsRecording()
@@ -285,10 +310,28 @@ function DriverPanelPage() {
       setAlertFeedback({ variant: 'success', message: result.message })
       setTitle('')
       setMessage('')
+      refreshActiveAlerts().catch(() => {})
     } catch (requestError) {
       setAlertFeedback({
         variant: 'danger',
         message: requestError.response?.data?.error || 'Unable to broadcast this alert.',
+      })
+    } finally {
+      setSavingSection('')
+    }
+  }
+
+  async function handleDeactivateAlert(alertId) {
+    setSavingSection(`alert-${alertId}`)
+    setAlertFeedback(null)
+    try {
+      await deactivateAlert(alertId)
+      await refreshActiveAlerts()
+      setAlertFeedback({ variant: 'success', message: 'Alert deactivated successfully.' })
+    } catch (requestError) {
+      setAlertFeedback({
+        variant: 'danger',
+        message: requestError.response?.data?.error || 'Unable to deactivate this alert.',
       })
     } finally {
       setSavingSection('')
@@ -521,6 +564,44 @@ function DriverPanelPage() {
                       <FeedbackMessage feedback={locationFeedback} />
                     </div>
                   </form>
+                  <div className="mt-4 pt-3 border-top" aria-label="Active alerts">
+                    <h3 className="h6 mb-2">Active alerts</h3>
+                    {activeAlerts.length === 0 && (
+                      <p className="small text-body-secondary mb-2">No active alerts.</p>
+                    )}
+                    {activeAlerts.map((alert) => {
+                      const meta = getAlertMeta(alert.alert_type)
+                      return (
+                        <article
+                          className="d-flex flex-wrap align-items-center justify-content-between gap-3 border-bottom py-2"
+                          key={alert.id}
+                          style={{ borderLeft: `4px solid ${meta.borderColor}`, paddingLeft: 10 }}
+                        >
+                          <div className="d-grid gap-1">
+                            <span
+                              className={meta.badgeClass}
+                              style={alert.alert_type === 'GENERAL'
+                                ? { backgroundColor: meta.borderColor, color: '#fff' }
+                                : undefined}
+                            >
+                              <span aria-hidden="true">{meta.icon}</span>{' '}
+                              {alert.alert_type.replaceAll('_', ' ')}
+                            </span>
+                            <strong>{alert.title}</strong>
+                            <span className="small text-body-secondary">{alert.message}</span>
+                          </div>
+                          <button
+                            className="btn btn-sm btn-outline-danger"
+                            type="button"
+                            disabled={savingSection !== ''}
+                            onClick={() => handleDeactivateAlert(alert.id)}
+                          >
+                            {savingSection === `alert-${alert.id}` ? 'Deactivating…' : `Deactivate ${alert.title}`}
+                          </button>
+                        </article>
+                      )
+                    })}
+                  </div>
                 </div>
               </section>
             </div>
