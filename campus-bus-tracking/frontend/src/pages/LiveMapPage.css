@@ -134,6 +134,99 @@
   transform: rotate(45deg);
 }
 
+.live-map-chip-simulate::before {
+  position: absolute;
+  right: 1px;
+  bottom: 3px;
+  left: 1px;
+  height: 8px;
+  border-radius: 3px 3px 2px 2px;
+  background: #80868b;
+  content: '';
+}
+
+.live-map-chip-simulate::after {
+  position: absolute;
+  right: 3px;
+  bottom: 1px;
+  left: 3px;
+  height: 3px;
+  border-right: 2px solid #fff;
+  border-left: 2px solid #fff;
+  content: '';
+}
+
+.is-selected .live-map-chip-simulate::before {
+  background: var(--map-blue);
+}
+
+.live-map-demo-bus-icon {
+  border: 0;
+  background: transparent;
+}
+
+.live-map-demo-bus-marker {
+  display: flex;
+  width: 72px;
+  height: 48px;
+  align-items: center;
+  flex-direction: column;
+}
+
+.live-map-demo-bus-square {
+  display: flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #fff;
+  border-radius: 9px;
+  background: var(--map-blue);
+  box-shadow: 0 2px 5px rgb(32 33 36 / 35%);
+}
+
+.live-map-demo-bus-glyph {
+  position: relative;
+  width: 17px;
+  height: 12px;
+  border-radius: 3px 3px 2px 2px;
+  background: #fff;
+}
+
+.live-map-demo-bus-glyph::before {
+  position: absolute;
+  top: 2px;
+  left: 3px;
+  width: 4px;
+  height: 3px;
+  background: var(--map-blue);
+  box-shadow: 5px 0 0 var(--map-blue);
+  content: '';
+}
+
+.live-map-demo-bus-glyph::after {
+  position: absolute;
+  right: 2px;
+  bottom: -2px;
+  left: 2px;
+  height: 3px;
+  border-right: 2px solid #202124;
+  border-left: 2px solid #202124;
+  content: '';
+}
+
+.live-map-demo-bus-label {
+  margin-top: 2px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: #202124;
+  box-shadow: 0 1px 3px rgb(32 33 36 / 28%);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 12px;
+}
+
 .is-selected .live-map-chip-places {
   border-color: var(--map-blue);
   background: var(--map-blue);
@@ -384,8 +477,8 @@
 
   .live-map-chip {
     min-height: 38px;
-    gap: 7px;
-    padding: 0 12px;
+    gap: 5px;
+    padding: 0 9px;
     font-size: 13px;
   }
 

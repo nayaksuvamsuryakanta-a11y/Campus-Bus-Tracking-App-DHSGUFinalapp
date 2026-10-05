@@ -48,6 +48,8 @@ const PLACE_MARKER_CLASSES = {
 }
 
 const DEMO_ROUTE_NAME = 'Campus Circle Route (DEMO)'
+const BUS_SIMULATION_INTERVAL_MS = 1000
+const BUS_SIMULATION_METERS_PER_TICK = 300
 
 function busIcon(status) {
   const color = BUS_MARKER_CLASSES[status] || 'bg-secondary'
@@ -57,6 +59,16 @@ function busIcon(status) {
     iconSize: [20, 20],
     iconAnchor: [10, 10],
     popupAnchor: [0, -10],
+  })
+}
+
+function demoBusIcon() {
+  return L.divIcon({
+    className: 'live-map-demo-bus-icon',
+    html: '<span class="live-map-demo-bus-marker"><span class="live-map-demo-bus-square"><span class="live-map-demo-bus-glyph"></span></span><span class="live-map-demo-bus-label">BUS-101</span></span>',
+    iconSize: [72, 48],
+    iconAnchor: [36, 18],
+    popupAnchor: [0, -18],
   })
 }
 
@@ -95,6 +107,36 @@ function haversineDistanceKm(stops) {
   return distance
 }
 
+function distanceMetersBetween(start, end) {
+  const radians = Math.PI / 180
+  const latitude1 = start[0] * radians
+  const latitude2 = end[0] * radians
+  const latitudeDelta = (end[0] - start[0]) * radians
+  const longitudeDelta = (end[1] - start[1]) * radians
+  const haversine = Math.sin(latitudeDelta / 2) ** 2
+    + Math.cos(latitude1) * Math.cos(latitude2) * Math.sin(longitudeDelta / 2) ** 2
+  return 6371000 * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine))
+}
+
+function positionAlongRoute(positions, distanceMeters) {
+  let remainingDistance = distanceMeters
+  for (let index = 1; index < positions.length; index += 1) {
+    const start = positions[index - 1]
+    const end = positions[index]
+    const segmentDistance = distanceMetersBetween(start, end)
+    if (segmentDistance === 0) continue
+    if (remainingDistance <= segmentDistance) {
+      const progress = remainingDistance / segmentDistance
+      return [
+        start[0] + (end[0] - start[0]) * progress,
+        start[1] + (end[1] - start[1]) * progress,
+      ]
+    }
+    remainingDistance -= segmentDistance
+  }
+  return positions[0]
+}
+
 function waypointMarkerOptions(index, total) {
   if (index === 0) {
     return { radius: 6, pathOptions: { color: '#fff', weight: 2, fillColor: '#1a73e8', fillOpacity: 1 } }
@@ -128,6 +170,8 @@ function LiveMapPage() {
   const [stopsError, setStopsError] = useState('')
   const [showStops, setShowStops] = useState(false)
   const [showPlaces, setShowPlaces] = useState(true)
+  const [showSimulatedBus, setShowSimulatedBus] = useState(true)
+  const [busSimulationDistance, setBusSimulationDistance] = useState(0)
   const [isItineraryOpen, setIsItineraryOpen] = useState(false)
   const [lastUpdated, setLastUpdated] = useState(null)
   const [roadRoutingResult, setRoadRoutingResult] = useState({
@@ -250,6 +294,12 @@ function LiveMapPage() {
   const routePositions = roadRoute
     ? roadRoute.coordinates.map(([longitude, latitude]) => [latitude, longitude])
     : directRoutePositions
+  const routeLengthMeters = routePositions.slice(1).reduce((distance, position, index) => (
+    distance + distanceMetersBetween(routePositions[index], position)
+  ), 0)
+  const simulatedBusPosition = routeLengthMeters > 0
+    ? positionAlongRoute(routePositions, busSimulationDistance % routeLengthMeters)
+    : null
   const routeDistanceKm = roadRoute?.distanceKm ?? haversineDistanceKm(routeStops)
   const routeMinutes = roadRoute
     ? Math.round(roadRoute.durationMin)
@@ -260,6 +310,18 @@ function LiveMapPage() {
   const routeName = routeStops[0]?.route_name || DEMO_ROUTE_NAME
   const selectedPlaceId = searchParams.get('place')
   const selectedPlace = mappedPlaces.find((place) => String(place.id) === selectedPlaceId)
+
+  useEffect(() => {
+    setBusSimulationDistance(0)
+    if (!showSimulatedBus || routeLengthMeters <= 0) return undefined
+
+    const intervalId = window.setInterval(() => {
+      setBusSimulationDistance((distance) => (
+        (distance + BUS_SIMULATION_METERS_PER_TICK) % routeLengthMeters
+      ))
+    }, BUS_SIMULATION_INTERVAL_MS)
+    return () => window.clearInterval(intervalId)
+  }, [routeKey, routeLengthMeters, roadRoute, showSimulatedBus])
 
   return (
     <main className="live-map-page">
@@ -311,22 +373,29 @@ function LiveMapPage() {
               />
             </>
           )}
-          {mappedBuses.map((bus) => (
-            <Marker
-              key={bus.id}
-              position={[Number(bus.latitude), Number(bus.longitude)]}
-              icon={busIcon(bus.status)}
-            >
-              <Popup>
-                <div className="d-grid gap-1">
-                  <strong>{bus.bus_number}</strong>
-                  <span>{bus.route_name || 'Unassigned route'}</span>
-                  <StatusBadge status={bus.status} />
-                  <DemoBadge isVerified={bus.is_verified} />
-                </div>
-              </Popup>
-            </Marker>
-          ))}
+          {mappedBuses.map((bus) => {
+            const isSimulatedBus = showSimulatedBus
+              && bus.bus_number === 'BUS-101'
+              && simulatedBusPosition
+            return (
+              <Marker
+                key={bus.id}
+                position={isSimulatedBus
+                  ? simulatedBusPosition
+                  : [Number(bus.latitude), Number(bus.longitude)]}
+                icon={isSimulatedBus ? demoBusIcon() : busIcon(bus.status)}
+              >
+                <Popup>
+                  <div className="d-grid gap-1">
+                    <strong>{bus.bus_number}</strong>
+                    <span>{bus.route_name || 'Unassigned route'}</span>
+                    <StatusBadge status={bus.status} />
+                    <DemoBadge isVerified={bus.is_verified} />
+                  </div>
+                </Popup>
+              </Marker>
+            )
+          })}
           {showStops && mappedStops.map((stop) => {
             const routeIndex = routeStops.findIndex((routeStop) => routeStop.id === stop.id)
             const markerOptions = routeIndex >= 0
@@ -387,6 +456,16 @@ function LiveMapPage() {
             />
             <span className="live-map-chip-icon live-map-chip-places" aria-hidden="true" />
             <span>Campus places</span>
+          </label>
+          <label className={`live-map-chip${showSimulatedBus ? ' is-selected' : ''}`}>
+            <input
+              id="simulate-bus"
+              type="checkbox"
+              checked={showSimulatedBus}
+              onChange={(event) => setShowSimulatedBus(event.target.checked)}
+            />
+            <span className="live-map-chip-icon live-map-chip-simulate" aria-hidden="true" />
+            <span>Simulate bus</span>
           </label>
         </div>
 

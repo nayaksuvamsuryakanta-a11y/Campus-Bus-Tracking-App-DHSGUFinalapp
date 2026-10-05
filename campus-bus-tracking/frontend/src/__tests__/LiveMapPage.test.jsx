@@ -106,9 +106,11 @@ function expectedRoadCoordinates(stops, straightSegmentIndex = -1) {
 
 function expectUniformBlueRouteLines(routeLines) {
   expect(routeLines).toHaveLength(2)
-  expect(routeLines.map((routeLine) => (
+  const colors = routeLines.map((routeLine) => (
     JSON.parse(routeLine.getAttribute('data-path-options')).color
-  ))).toEqual(['#0b57d0', '#1a73e8'])
+  ))
+  expect(colors).toEqual(['#0b57d0', '#1a73e8'])
+  expect(colors.every((color) => ['#0b57d0', '#1a73e8'].includes(color))).toBe(true)
 }
 
 function haversineDistanceKm(start, end) {
@@ -162,7 +164,7 @@ describe('LiveMapPage', () => {
     })
   })
 
-  it('renders the map and gives delayed buses danger-colored divIcons', async () => {
+  it('renders the map and shows the simulated BUS-101 marker by default', async () => {
     renderMap()
 
     expect(await screen.findByTestId('map')).toBeInTheDocument()
@@ -181,9 +183,10 @@ describe('LiveMapPage', () => {
     const busMarker = screen.getAllByTestId('marker')
       .find((marker) => marker.getAttribute('data-position') === '[23.820405,78.7700109]')
     expect(busMarker).toBeInTheDocument()
-    expect(busMarker).toHaveAttribute('data-icon-html', expect.stringContaining('bg-danger'))
+    expect(busMarker).toHaveAttribute('data-icon-html', expect.stringContaining('BUS-101'))
+    expect(screen.getByRole('checkbox', { name: 'Simulate bus' })).toBeChecked()
     expect(L.divIcon).toHaveBeenCalledWith(expect.objectContaining({
-      html: expect.stringContaining('bg-danger'),
+      html: expect.stringContaining('live-map-demo-bus-square'),
     }))
     expect(await screen.findByText('≈ 6.0 km • ~18 min')).toBeInTheDocument()
     const routeLines = await screen.findAllByTestId('polyline')
@@ -263,6 +266,29 @@ describe('LiveMapPage', () => {
       await vi.advanceTimersByTimeAsync(20000)
     })
     expect(getBuses).toHaveBeenCalledTimes(2)
+  })
+
+  it('moves the simulated bus each tick and shows the backend position when disabled', async () => {
+    vi.useFakeTimers()
+    renderMap()
+    await flushPromises()
+
+    const simulateBus = screen.getByRole('checkbox', { name: 'Simulate bus' })
+    expect(simulateBus).toBeChecked()
+    const simulatedMarker = () => screen.getAllByTestId('marker')
+      .find((marker) => marker.getAttribute('data-icon-html').includes('BUS-101'))
+    const startingPosition = simulatedMarker().getAttribute('data-position')
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000)
+    })
+    expect(simulatedMarker().getAttribute('data-position')).not.toBe(startingPosition)
+
+    fireEvent.click(simulateBus)
+    const backendMarker = screen.getAllByTestId('marker')
+      .find((marker) => marker.getAttribute('data-position') === '[23.820405,78.7700109]')
+    expect(simulateBus).not.toBeChecked()
+    expect(backendMarker).toHaveAttribute('data-icon-html', expect.stringContaining('bg-danger'))
   })
 
   it('loads places and stops once, independent of the bus refresh timer', async () => {
